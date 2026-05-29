@@ -1,6 +1,8 @@
 # CLI Model Switcher
 
-**Language:** English | [简体中文](docs/README.zh-CN.md) | [繁體中文](docs/README.zh-TW.md)
+**Language:** English | [Simplified Chinese](docs/README.zh-CN.md) | [Traditional Chinese](docs/README.zh-TW.md)
+
+**Project Links:** [Changelog](CHANGELOG.md) | [Releases](https://github.com/YuxuanSun123/cli-model-switcher/releases)
 
 A local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
 
