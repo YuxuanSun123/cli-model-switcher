@@ -10,7 +10,7 @@ Prefer the auto installer:
 python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" install-unix --shell auto
 ```
 
-Open a new terminal or reload the shell profile printed by the installer.
+This installs shell functions, adds the shim directory to interactive shell helpers, and writes POSIX executable shims into `~/.local/bin` by default. Open a new terminal or reload the shell profile printed by the installer.
 
 For a complete first-run setup with recommended profiles and strategy aliases:
 
@@ -47,6 +47,13 @@ Fish:
 python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" install-unix --shell fish
 ```
 
+Executable shims only, useful for non-interactive agent shells:
+
+```bash
+python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" install-bin
+python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" install-bin --bin-dir "$HOME/.local/bin"
+```
+
 ## Commands After Install
 
 ```bash
@@ -63,6 +70,11 @@ ai-strategy install
 ai-recipe list
 ai-recipe install opencode-openrouter --use
 ai-use code-fast
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up
+ai-wgo claude
+ai-agent install all
+ai-agent prompt
 ai-session start claude --backend tmux
 ai-session switch claude
 ai-handoff claude "Review the current Codex work and look for regressions."
@@ -118,6 +130,11 @@ Project-local files:
 - macOS default shell is usually zsh; use `~/.zshrc` for interactive terminals.
 - Linux bash usually uses `~/.bashrc` for interactive terminals.
 - macOS bash may use `~/.bash_profile`; pass `--profile` if needed.
+- Agent shell tools often run non-interactive shells. `install-unix` adds `~/.local/bin` to interactive helpers, but some agents may need it in the broader login environment so commands such as `ai-agent`, `ai-workspace`, `ai-wup`, and `ai-wgo` work even when Bash/Zsh/fish functions are not loaded.
+- Bash/Zsh PATH example: `export PATH="$HOME/.local/bin:$PATH"`.
+- fish PATH example: `fish_add_path ~/.local/bin`.
+- Keep the `ai-use` and `ai-select` shell functions for current-shell environment switching; executable shims can run commands but cannot mutate their parent shell.
+- Use tmux for true same-terminal switching on Linux, macOS, and WSL: `brew install tmux`, `sudo apt install tmux`, or your distro package manager equivalent.
 - `open context` uses `open` on macOS and `xdg-open` on Linux when available.
 - Keep real API keys in the shell, keychain, or credential manager; store only `${ENV_VAR}` references in profiles.
 - Use API presets to reduce setup steps: `ai-api list`, `ai-api show openrouter`, or `ai-profile router --command opencode --api openrouter --model openrouter/auto --use`.

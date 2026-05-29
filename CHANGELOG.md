@@ -13,9 +13,11 @@ This project currently follows a lightweight release format while it is still a 
 - Project-local workspace targets, detailed `workspace show/status`, interactive `workspace choose`, and short shell helpers `ai-ws`, `ai-wup`, `ai-wgo`, and `ai-wpick`.
 - `agent` command and `ai-agent` helper for installing Codex/Claude/OpenCode instruction bridges, so agent-side requests like `/switch claude` can run `ai-workspace switch claude`.
 - Additional agent bridge targets for Gemini, Qwen Code, GitHub Copilot/VS Code, Cursor, Windsurf/Cascade, Aider, Cline, Roo Code, generic `AGENTS.md`, and custom `--file` rule paths.
+- `install-bin` for POSIX executable shims on Linux, macOS, and WSL, plus default shim installation and interactive PATH setup from `install-unix` for agent-side and non-interactive shell compatibility.
 
 ### Fixed
 
+- macOS path and URL opening now prefers the native `open` command before Linux `xdg-open`.
 - Session launch commands now refresh the combined memory context using the requested `--cwd`, so project memory is included when starting an agent from another directory.
 - Session and workspace profile resolution now respects the requested `--cwd` when project-local profiles or aliases are present.
 - Explicit profile names now take precedence over recipe aliases, so a profile named `opencode` is not shadowed by an `opencode` recipe alias.

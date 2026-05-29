@@ -217,7 +217,12 @@ py -3.12 scripts\cli_model_switcher.py install-cmd --dir "$env:USERPROFILE\bin\a
 ```bash
 python3 scripts/cli_model_switcher.py install-unix --shell auto
 python3 scripts/cli_model_switcher.py install-unix --shell fish
+python3 scripts/cli_model_switcher.py install-bin
 ```
+
+On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
+
+Keep the shell functions for `ai-use` and `ai-select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
 Generated helpers include:
 

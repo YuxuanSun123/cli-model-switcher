@@ -11,7 +11,7 @@ py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_sw
 . $PROFILE
 ```
 
-Set `$env:AI_CLI_SWITCHER_PYTHON` if the wrapper should use a specific Python command, such as `py -3.12`.
+Set `$env:AI_CLI_SWITCHER_PYTHON` if the wrapper should use a specific Python executable, such as `python.exe` or a full interpreter path. The generated wrapper already tries `py -3.12` when this variable is not set.
 
 Or add functions to `$PROFILE` manually:
 

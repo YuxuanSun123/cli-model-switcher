@@ -124,6 +124,7 @@ py -3.12 scripts/cli_model_switcher.py install-cmd --dir %USERPROFILE%\bin\ai-cl
 py -3.12 scripts/cli_model_switcher.py install-shell --output ~/.config/ai-cli-switcher/ai-cli-switcher.sh
 py -3.12 scripts/cli_model_switcher.py install-fish --output ~/.config/fish/conf.d/ai-cli-switcher.fish
 python3 scripts/cli_model_switcher.py install-unix --shell auto
+python3 scripts/cli_model_switcher.py install-bin
 ```
 
 The helper creates starter profiles for `codex`, `claude`, and `opencode`. Edit profile fields to match the user's actual commands and model names.
@@ -193,9 +194,10 @@ Prefer script commands over manual JSON edits:
 - `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ai-use.cmd`, `ai-agent.cmd`, `ai-workspace.cmd`, `ai-wup.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
 - `install-shell --output FILE` writes Bash/Zsh helper functions.
 - `install-fish --output FILE` writes fish helper functions.
-- `install-unix --shell auto|bash|zsh|fish` installs Linux/macOS shell helpers and updates the relevant shell profile.
+- `install-unix --shell auto|bash|zsh|fish` installs Linux/macOS shell helpers, updates the relevant shell profile, and writes POSIX executable shims into `~/.local/bin` by default.
+- `install-bin --bin-dir DIR` writes POSIX executable shims such as `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` for non-interactive Linux/macOS/WSL agent shells. Keep shell functions for `ai-use` and `ai-select` because only sourced functions can update the current shell environment.
 - `current --shell` supports `powershell`, `cmd`, `bash`, `zsh`, `fish`, and `nu`.
-- Set `AI_CLI_SWITCHER_PYTHON` when wrappers need a specific Python command, such as `py -3.12` or `python3`.
+- Set `AI_CLI_SWITCHER_PYTHON` when wrappers need a specific Python executable, such as `python3` or a full interpreter path. The generated wrappers already try common launchers such as `py -3.12` when the variable is not set.
 
 ## Shared Memory Rules
 

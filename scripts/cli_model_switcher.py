@@ -54,6 +54,37 @@ AGENT_BRIDGE_ALIASES = {
     "roo-code": "roo",
     "vscode": "copilot",
 }
+POSIX_BIN_COMMANDS: dict[str, list[str]] = {
+    "ai-cli-switcher": [],
+    "ai-use": ["use"],
+    "ai-select": ["select"],
+    "ai-current": ["current"],
+    "ai-status": ["status"],
+    "ai-paths": ["paths"],
+    "ai-list": ["list"],
+    "ai-profile": ["profile"],
+    "ai-api": ["api"],
+    "ai-model": ["model"],
+    "ai-strategy": ["strategy"],
+    "ai-recipe": ["recipe"],
+    "ai-adapter": ["adapter"],
+    "ai-agent": ["agent"],
+    "ai-session": ["session"],
+    "ai-workspace": ["workspace"],
+    "ai-ws": ["workspace"],
+    "ai-wup": ["workspace", "up"],
+    "ai-wgo": ["workspace", "switch"],
+    "ai-wpick": ["workspace", "choose"],
+    "ai-handoff": ["handoff"],
+    "ai-doctor": ["doctor"],
+    "ai-secret": ["secret"],
+    "ai-remember": ["remember"],
+    "ai-recall": ["recall"],
+    "ai-memory": ["memory"],
+    "ai-page": ["page"],
+    "ai-open-memory": ["open", "context"],
+    "ai-run": ["run"],
+}
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("OpenAI key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")),
@@ -1354,6 +1385,18 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
             add_repair_event(events, "warn", "cmd wrapper", f"missing wrappers: {', '.join(missing_cmd)}")
         else:
             add_repair_event(events, "ok", "cmd wrapper", str(cmd_dir))
+    if os.name != "nt":
+        bin_dir = Path.home() / ".local" / "bin"
+        if bin_dir.exists():
+            required_bin = ["ai-cli-switcher", "ai-workspace", "ai-agent", "ai-wup", "ai-wgo", "ai-wpick"]
+            missing_bin = [name for name in required_bin if not (bin_dir / name).exists()]
+            if missing_bin and fix:
+                cmd_install_bin(argparse.Namespace(bin_dir=str(bin_dir), dry_run=False))
+                add_repair_event(events, "fixed", "POSIX bin shims", f"reinstalled missing shims: {', '.join(missing_bin)}")
+            elif missing_bin:
+                add_repair_event(events, "warn", "POSIX bin shims", f"missing shims: {', '.join(missing_bin)}")
+            else:
+                add_repair_event(events, "ok", "POSIX bin shims", str(bin_dir))
 
 
 def portable_path(path_value: Any) -> Any:
@@ -1844,7 +1887,8 @@ def launch_path_or_url(target: str | Path) -> None:
     if os.name == "nt":
         os.startfile(value)  # type: ignore[attr-defined]
         return
-    opener = shutil.which("xdg-open") or shutil.which("open")
+    opener = shutil.which("open") if sys_platform_name() == "darwin" else shutil.which("xdg-open")
+    opener = opener or shutil.which("xdg-open") or shutil.which("open")
     if not opener:
         raise SystemExit("No opener found. Print the path/URL and open it manually.")
     subprocess.Popen([opener, value])
@@ -3830,10 +3874,37 @@ if errorlevel 1 exit /b %errorlevel%
     }
 
 
-def posix_shell_functions() -> str:
+def posix_path_prelude(bin_dir: Path | None) -> str:
+    if bin_dir is None:
+        return ""
+    quoted = shell_quote(str(bin_dir), "bash")
+    return f"""
+_ai_cli_switcher_bin={quoted}
+if [ -d "$_ai_cli_switcher_bin" ]; then
+  case ":$PATH:" in
+    *":$_ai_cli_switcher_bin:"*) ;;
+    *) export PATH="$_ai_cli_switcher_bin:$PATH" ;;
+  esac
+fi
+"""
+
+
+def fish_path_prelude(bin_dir: Path | None) -> str:
+    if bin_dir is None:
+        return ""
+    quoted = shell_quote(str(bin_dir), "fish")
+    return f"""
+if test -d {quoted}
+  fish_add_path {quoted}
+end
+"""
+
+
+def posix_shell_functions(bin_dir: Path | None = None) -> str:
     script = shell_quote(str(SCRIPT_PATH), "bash")
     return f"""# >>> ai-cli-switcher >>>
 AI_CLI_SWITCHER_SCRIPT={script}
+{posix_path_prelude(bin_dir)}
 
 _ai_cli_switcher() {{
   if [ -n "${{AI_CLI_SWITCHER_PYTHON:-}}" ]; then
@@ -3890,10 +3961,11 @@ ai-run() {{ _ai_cli_switcher run "$@"; }}
 """
 
 
-def fish_shell_functions() -> str:
+def fish_shell_functions(bin_dir: Path | None = None) -> str:
     script = shell_quote(str(SCRIPT_PATH), "fish")
     return f"""# >>> ai-cli-switcher >>>
 set -gx AI_CLI_SWITCHER_SCRIPT {script}
+{fish_path_prelude(bin_dir)}
 
 function _ai_cli_switcher
   if set -q AI_CLI_SWITCHER_PYTHON
@@ -4012,6 +4084,57 @@ def cmd_install_fish(args: argparse.Namespace) -> None:
     print(f"Installed fish helpers into {output}")
 
 
+def posix_bin_script(command_args: list[str]) -> str:
+    script = shell_quote(str(SCRIPT_PATH), "bash")
+    command_text = " ".join(shell_quote(item, "bash") for item in command_args)
+    command_suffix = f" {command_text}" if command_text else ""
+    return f"""#!/usr/bin/env sh
+AI_CLI_SWITCHER_SCRIPT={script}
+
+if [ -n "${{AI_CLI_SWITCHER_PYTHON:-}}" ]; then
+  exec "$AI_CLI_SWITCHER_PYTHON" "$AI_CLI_SWITCHER_SCRIPT"{command_suffix} "$@"
+elif command -v python3 >/dev/null 2>&1; then
+  exec python3 "$AI_CLI_SWITCHER_SCRIPT"{command_suffix} "$@"
+elif command -v python >/dev/null 2>&1; then
+  exec python "$AI_CLI_SWITCHER_SCRIPT"{command_suffix} "$@"
+elif command -v py >/dev/null 2>&1; then
+  exec py -3.12 "$AI_CLI_SWITCHER_SCRIPT"{command_suffix} "$@"
+else
+  echo "No Python launcher found. Set AI_CLI_SWITCHER_PYTHON to a Python executable." >&2
+  exit 1
+fi
+"""
+
+
+def install_posix_bin_files(bin_dir: Path, dry_run: bool) -> None:
+    for name, command_args in POSIX_BIN_COMMANDS.items():
+        path = bin_dir / name
+        content = posix_bin_script(command_args)
+        if dry_run:
+            print(f"--- {path} ---")
+            print(content.rstrip())
+            continue
+        path.write_text(content, encoding="utf-8")
+        path.chmod(0o755)
+
+
+def cmd_install_bin(args: argparse.Namespace) -> None:
+    bin_dir = Path(args.bin_dir or Path.home() / ".local" / "bin").expanduser()
+    if args.dry_run:
+        install_posix_bin_files(bin_dir, True)
+        return
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    install_posix_bin_files(bin_dir, False)
+    print(f"Installed POSIX executable shims into {bin_dir}")
+    path_entries = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
+    in_path = any(Path(entry).expanduser().resolve() == bin_dir.resolve() for entry in path_entries)
+    if not in_path:
+        print(f"Add this directory to PATH for non-interactive agent shells: {bin_dir}")
+        print(f"Bash/Zsh: export PATH={shell_quote(str(bin_dir), 'bash')}:$PATH")
+        print(f"fish: fish_add_path {shell_quote(str(bin_dir), 'fish')}")
+    print("Note: ai-use/ai-select shell functions still provide the best in-shell environment switching; shims are for direct command execution.")
+
+
 def detect_unix_shell() -> str:
     shell = os.environ.get("SHELL", "")
     name = Path(shell).name
@@ -4061,25 +4184,36 @@ def upsert_source_line(profile_path: Path, source_path: Path, dry_run: bool) -> 
 
 def cmd_install_unix(args: argparse.Namespace) -> None:
     shell = args.shell if args.shell != "auto" else detect_unix_shell()
+    bin_dir = (
+        None
+        if getattr(args, "no_bin", False)
+        else Path(getattr(args, "bin_dir", None) or Path.home() / ".local" / "bin").expanduser()
+    )
     if shell == "fish":
         output = Path(args.output or default_unix_profile("fish")).expanduser()
-        content = fish_shell_functions()
+        content = fish_shell_functions(bin_dir)
         if args.dry_run:
             print(f"--- {output} ---")
             print(content.rstrip())
+            if not getattr(args, "no_bin", False):
+                cmd_install_bin(argparse.Namespace(bin_dir=getattr(args, "bin_dir", None), dry_run=True))
             return
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(content, encoding="utf-8")
         print(f"Installed fish helpers into {output}")
+        if not getattr(args, "no_bin", False):
+            cmd_install_bin(argparse.Namespace(bin_dir=getattr(args, "bin_dir", None), dry_run=args.dry_run))
         return
 
     helper = Path(args.output or Path.home() / ".config" / "ai-cli-switcher" / "ai-cli-switcher.sh").expanduser()
     profile = Path(args.profile or default_unix_profile(shell)).expanduser()
-    helper_content = posix_shell_functions()
+    helper_content = posix_shell_functions(bin_dir)
     if args.dry_run:
         print(f"--- {helper} ---")
         print(helper_content.rstrip())
         upsert_source_line(profile, helper, True)
+        if not getattr(args, "no_bin", False):
+            cmd_install_bin(argparse.Namespace(bin_dir=getattr(args, "bin_dir", None), dry_run=True))
         return
     helper.parent.mkdir(parents=True, exist_ok=True)
     helper.write_text(helper_content, encoding="utf-8")
@@ -4088,6 +4222,8 @@ def cmd_install_unix(args: argparse.Namespace) -> None:
     print(f"Installed {shell} helpers into {helper}")
     print(f"Updated shell profile: {profile}")
     print(f"Reload with: source {profile}")
+    if not getattr(args, "no_bin", False):
+        cmd_install_bin(argparse.Namespace(bin_dir=getattr(args, "bin_dir", None), dry_run=False))
 
 
 def cmd_recipe(args: argparse.Namespace) -> None:
@@ -4171,9 +4307,9 @@ def install_shell_helpers_for_setup(args: argparse.Namespace, shell: str) -> Non
     elif shell == "cmd":
         cmd_install_cmd(argparse.Namespace(dir=args.dir, dry_run=args.dry_run))
     elif shell == "unix":
-        cmd_install_unix(argparse.Namespace(shell="auto", output=args.output, profile=args.profile, dry_run=args.dry_run))
+        cmd_install_unix(argparse.Namespace(shell="auto", output=args.output, profile=args.profile, bin_dir=getattr(args, "bin_dir", None), no_bin=getattr(args, "no_bin", False), dry_run=args.dry_run))
     elif shell in {"bash", "zsh", "fish"}:
-        cmd_install_unix(argparse.Namespace(shell=shell, output=args.output, profile=args.profile, dry_run=args.dry_run))
+        cmd_install_unix(argparse.Namespace(shell=shell, output=args.output, profile=args.profile, bin_dir=getattr(args, "bin_dir", None), no_bin=getattr(args, "no_bin", False), dry_run=args.dry_run))
     else:
         raise SystemExit(f"Unsupported setup shell {shell!r}")
 
@@ -4970,10 +5106,17 @@ def build_parser() -> argparse.ArgumentParser:
     install_fish_parser.add_argument("--dry-run", action="store_true")
     install_fish_parser.set_defaults(func=cmd_install_fish)
 
+    install_bin_parser = sub.add_parser("install-bin", help="Install POSIX executable ai-* shims for Linux/macOS/WSL non-interactive shells.")
+    install_bin_parser.add_argument("--bin-dir", help="Directory for executable shims. Defaults to ~/.local/bin.")
+    install_bin_parser.add_argument("--dry-run", action="store_true")
+    install_bin_parser.set_defaults(func=cmd_install_bin)
+
     install_unix_parser = sub.add_parser("install-unix", help="Install Linux/macOS helpers for bash, zsh, or fish.")
     install_unix_parser.add_argument("--shell", choices=["auto", "bash", "zsh", "fish"], default="auto")
     install_unix_parser.add_argument("--output", "-o")
     install_unix_parser.add_argument("--profile")
+    install_unix_parser.add_argument("--bin-dir", help="Directory for executable shims. Defaults to ~/.local/bin.")
+    install_unix_parser.add_argument("--no-bin", action="store_true", help="Skip installing POSIX executable shims.")
     install_unix_parser.add_argument("--dry-run", action="store_true")
     install_unix_parser.set_defaults(func=cmd_install_unix)
 
@@ -4982,6 +5125,8 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--profile")
     setup_parser.add_argument("--dir")
     setup_parser.add_argument("--output", "-o")
+    setup_parser.add_argument("--bin-dir", help="Directory for POSIX executable shims when using Linux/macOS shells.")
+    setup_parser.add_argument("--no-bin", action="store_true", help="Skip POSIX executable shims when using Linux/macOS shells.")
     setup_parser.add_argument("--with-cmd", action="store_true", help="Also install cmd.exe wrappers on Windows.")
     setup_parser.add_argument("--full", action="store_true", help="Create recommended profiles, strategy aliases, and shell helpers.")
     setup_parser.add_argument("--wizard", action="store_true", help="Interactively detect tools, install recipes, choose an active profile, and run checks.")
