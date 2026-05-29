@@ -45,8 +45,10 @@ py -3.12 scripts/cli_model_switcher.py api show openrouter
 py -3.12 scripts/cli_model_switcher.py api apply opencode openrouter --command opencode --model anthropic/claude-sonnet-4.5 --use
 py -3.12 scripts/cli_model_switcher.py api test opencode --skip-network
 py -3.12 scripts/cli_model_switcher.py agent install codex claude opencode
+py -3.12 scripts/cli_model_switcher.py agent install gemini qwen copilot cursor windsurf aider cline roo
+py -3.12 scripts/cli_model_switcher.py agent install --file .my-agent-rules.md
 py -3.12 scripts/cli_model_switcher.py agent prompt
-py -3.12 scripts/cli_model_switcher.py agent paths codex claude
+py -3.12 scripts/cli_model_switcher.py agent paths codex claude cursor windsurf
 py -3.12 scripts/cli_model_switcher.py adapter opencode opencode-openrouter
 py -3.12 scripts/cli_model_switcher.py model list --provider openrouter
 py -3.12 scripts/cli_model_switcher.py model pin opencode-openrouter code
@@ -156,7 +158,7 @@ Prefer script commands over manual JSON edits:
 - `profile NAME --command COMMAND --api PRESET --model MODEL --use` creates or updates a profile with a model API preset in one step.
 - `api list`, `api show PRESET`, and `api apply PROFILE PRESET --command COMMAND --use` manage built-in API presets.
 - `api test PROFILE` checks command availability, key env vars, base URL format, and OpenAI-compatible `/models` connectivity unless `--skip-network` is used.
-- `agent install codex claude opencode` writes project instruction files (`AGENTS.md`, `CLAUDE.md`) that teach agent CLIs to execute `ai-workspace switch TARGET` when the user says `/switch TARGET`, `switch TARGET`, `next`, `choose`, or `handoff TARGET NOTE`. `agent prompt` prints a compact instruction to paste into an already-running agent session.
+- `agent install codex claude opencode` writes project instruction files (`AGENTS.md`, `CLAUDE.md`) that teach agent CLIs to execute `ai-workspace switch TARGET` when the user says `/switch TARGET`, `switch TARGET`, `next`, `choose`, or `handoff TARGET NOTE`. `agent prompt` prints a compact instruction to paste into an already-running agent session. Built-in agent targets include `codex`, `claude`, `opencode`, `gemini`, `qwen`, `copilot`/`vscode`, `cursor`, `windsurf`/`cascade`, `aider`, `cline`, `roo`, and `generic`; use `--file PATH` for custom rule files.
 - `adapter codex|claude|gemini|opencode [PROFILE]` prints CLI-specific environment and config snippets for the active or named profile.
 - Built-in API presets include `openai`, `anthropic`, `gemini`, `azure-openai`, `openrouter`, `deepseek`, `groq`, `ollama`, `lmstudio`, `mistral`, `xai`, `together`, `fireworks`, `dashscope`, `moonshot`, `zhipu`, `siliconflow`, `volcengine`, `cerebras`, `perplexity`, `novita`, and `custom-openai`.
 - Use `--base-url` and `--api-key-env ENV` with `api apply` or `profile --api` to point a preset at a private gateway, proxy, regional endpoint, or alternate key variable.

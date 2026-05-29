@@ -33,10 +33,26 @@ WORKSPACE_TARGET_PRIORITY = ["codex", "claude", "opencode-openrouter", "opencode
 AGENT_BRIDGE_MARKER_START = "<!-- >>> ai-cli-switcher agent-bridge >>> -->"
 AGENT_BRIDGE_MARKER_END = "<!-- <<< ai-cli-switcher agent-bridge <<< -->"
 AGENT_BRIDGE_TARGET_FILES: dict[str, list[str]] = {
+    "aider": ["CONVENTIONS.md"],
+    "cline": [".clinerules/ai-cli-switcher.md"],
     "codex": ["AGENTS.md"],
     "claude": ["CLAUDE.md"],
+    "copilot": [".github/copilot-instructions.md"],
+    "cursor": [".cursor/rules/ai-cli-switcher.mdc"],
     "opencode": ["AGENTS.md"],
     "gemini": ["GEMINI.md"],
+    "generic": ["AGENTS.md"],
+    "qwen": ["QWEN.md"],
+    "roo": [".roo/rules/ai-cli-switcher.md"],
+    "windsurf": ["AGENTS.md", ".windsurf/rules/ai-cli-switcher.md"],
+}
+AGENT_BRIDGE_ALIASES = {
+    "cascade": "windsurf",
+    "github": "copilot",
+    "github-copilot": "copilot",
+    "qwen-code": "qwen",
+    "roo-code": "roo",
+    "vscode": "copilot",
 }
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -2299,6 +2315,11 @@ def cmd_api(args: argparse.Namespace) -> None:
         print(f"Alias saved: {args.alias} -> {args.profile}")
 
 
+def agent_bridge_target_name(value: str) -> str:
+    key = value.strip().lower()
+    return AGENT_BRIDGE_ALIASES.get(key, key)
+
+
 def agent_bridge_targets(values: list[str] | None, all_targets: bool = False) -> list[str]:
     if all_targets or not values:
         return list(AGENT_BRIDGE_TARGET_FILES)
@@ -2307,6 +2328,7 @@ def agent_bridge_targets(values: list[str] | None, all_targets: bool = False) ->
         for item in re.split(r"[, ]+", str(value).strip()):
             if not item:
                 continue
+            item = agent_bridge_target_name(item)
             if item == "all":
                 return list(AGENT_BRIDGE_TARGET_FILES)
             if item not in AGENT_BRIDGE_TARGET_FILES:
@@ -2316,14 +2338,37 @@ def agent_bridge_targets(values: list[str] | None, all_targets: bool = False) ->
     return dedupe_preserve_order(targets)
 
 
-def agent_bridge_files(targets: list[str], root: Path) -> list[Path]:
-    files: list[Path] = []
+def agent_bridge_prefix(path: Path) -> str:
+    normalized = path.as_posix()
+    if normalized.endswith(".cursor/rules/ai-cli-switcher.mdc"):
+        return "---\ndescription: AI CLI Switcher bridge for switching terminal agents\nalwaysApply: true\n---\n\n"
+    if normalized.endswith(".windsurf/rules/ai-cli-switcher.md"):
+        return "---\ntrigger: always_on\ndescription: AI CLI Switcher bridge for switching terminal agents\n---\n\n"
+    return ""
+
+
+def agent_bridge_file_specs(targets: list[str], root: Path, extra_files: list[str] | None = None) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    seen: dict[Path, dict[str, Any]] = {}
     for target in targets:
         for name in AGENT_BRIDGE_TARGET_FILES[target]:
             path = root / name
-            if path not in files:
-                files.append(path)
-    return files
+            spec = seen.get(path)
+            if spec:
+                spec.setdefault("targets", []).append(target)
+                continue
+            spec = {"path": path, "targets": [target], "prefix": agent_bridge_prefix(path)}
+            specs.append(spec)
+            seen[path] = spec
+    for value in extra_files or []:
+        path = (root / value).resolve() if not Path(value).expanduser().is_absolute() else Path(value).expanduser().resolve()
+        if path in seen:
+            seen[path].setdefault("targets", []).append("custom")
+            continue
+        spec = {"path": path, "targets": ["custom"], "prefix": agent_bridge_prefix(path)}
+        specs.append(spec)
+        seen[path] = spec
+    return specs
 
 
 def agent_bridge_commands() -> list[tuple[str, str]]:
@@ -2371,7 +2416,7 @@ def agent_bridge_text(mode: str = "full") -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def upsert_marked_block(path: Path, block: str, dry_run: bool) -> str:
+def upsert_marked_block(path: Path, block: str, dry_run: bool, prefix: str = "") -> str:
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     marked = f"{AGENT_BRIDGE_MARKER_START}\n{block.rstrip()}\n{AGENT_BRIDGE_MARKER_END}\n"
     if AGENT_BRIDGE_MARKER_START in existing and AGENT_BRIDGE_MARKER_END in existing:
@@ -2380,7 +2425,10 @@ def upsert_marked_block(path: Path, block: str, dry_run: bool) -> str:
         updated = before.rstrip() + "\n\n" + marked + after.lstrip()
         action = "updated"
     else:
-        updated = existing.rstrip() + ("\n\n" if existing.strip() else "") + marked
+        base = existing.rstrip()
+        if prefix and not base:
+            base = prefix.rstrip()
+        updated = base + ("\n\n" if base else "") + marked
         action = "created" if not existing else "added"
     if dry_run:
         print(f"--- {path} ({action}) ---")
@@ -2416,16 +2464,18 @@ def cmd_agent(args: argparse.Namespace) -> None:
         print(agent_bridge_text("prompt" if args.action == "prompt" else "full").rstrip())
         return
 
-    files = agent_bridge_files(targets, root)
+    specs = agent_bridge_file_specs(targets, root, getattr(args, "file", []))
     if args.action == "paths":
-        for path in files:
-            print(path)
+        for spec in specs:
+            labels = ",".join(spec.get("targets", []))
+            print(f"{spec['path']} [{labels}]")
         return
 
     if args.action == "install":
         block = agent_bridge_text("full")
-        for path in files:
-            action = upsert_marked_block(path, block, args.dry_run)
+        for spec in specs:
+            path = spec["path"]
+            action = upsert_marked_block(path, block, args.dry_run, str(spec.get("prefix", "")))
             print(f"{action}: {path}")
         if not args.dry_run:
             print("Agent bridge installed. New agent sessions should read these project instruction files.")
@@ -2433,7 +2483,8 @@ def cmd_agent(args: argparse.Namespace) -> None:
         return
 
     if args.action == "remove":
-        for path in files:
+        for spec in specs:
+            path = spec["path"]
             action = remove_marked_block(path, args.dry_run)
             print(f"{action}: {path}")
         return
@@ -4627,9 +4678,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, and similar CLIs.")
     agent_parser.add_argument("action", choices=["install", "remove", "paths", "prompt", "instructions"])
-    agent_parser.add_argument("targets", nargs="*", help="Agent targets: codex, claude, opencode, gemini, or all. Defaults to all.")
+    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, gemini, qwen, copilot, cursor, windsurf, aider, cline, roo, generic, or all. Defaults to all.")
     agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
     agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
+    agent_parser.add_argument("--file", action="append", default=[], help="Extra project instruction/rules file to update. Repeat as needed.")
     agent_parser.add_argument("--dry-run", action="store_true")
     agent_parser.set_defaults(func=cmd_agent)
 

@@ -12,6 +12,7 @@ This project currently follows a lightweight release format while it is still a 
 - `workspace up`, `workspace targets`, `workspace add`, `workspace next`, and `workspace prev` to reduce repeated typing in same-terminal multi-agent workflows.
 - Project-local workspace targets, detailed `workspace show/status`, interactive `workspace choose`, and short shell helpers `ai-ws`, `ai-wup`, `ai-wgo`, and `ai-wpick`.
 - `agent` command and `ai-agent` helper for installing Codex/Claude/OpenCode instruction bridges, so agent-side requests like `/switch claude` can run `ai-workspace switch claude`.
+- Additional agent bridge targets for Gemini, Qwen Code, GitHub Copilot/VS Code, Cursor, Windsurf/Cascade, Aider, Cline, Roo Code, generic `AGENTS.md`, and custom `--file` rule paths.
 
 ### Fixed
 

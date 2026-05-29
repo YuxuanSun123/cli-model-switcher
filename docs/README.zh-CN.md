@@ -113,6 +113,8 @@ ai-workspace start codex claude --backend print
 
 ```powershell
 ai-agent install codex claude opencode
+ai-agent install gemini qwen copilot cursor windsurf aider cline roo
+ai-agent install --file .my-agent-rules.md
 ai-agent prompt
 ```
 
@@ -125,6 +127,13 @@ next
 choose
 handoff claude review the current changes
 ```
+
+内置 agent bridge 目标包括：
+
+- `codex`、`claude`、`opencode`、`gemini`、`qwen`
+- `copilot` / `vscode`、`cursor`、`windsurf` / `cascade`
+- `aider`、`cline`、`roo`
+- `generic` 写入 `AGENTS.md`，也可以用 `--file PATH` 写入任意自定义规则文件
 
 ## 会话和交接
 
@@ -178,6 +187,7 @@ ai-workspace switch claude
 ai-wgo claude
 ai-workspace add gemini
 ai-agent install codex claude opencode
+ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
