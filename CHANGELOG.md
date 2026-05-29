@@ -6,6 +6,10 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.3.0] - 2026-05-29
+
 ### Added
 
 - `workspace` command and `ai-workspace` shell helper for opening several agents in one terminal workspace and switching between them with tmux or Windows Terminal tabs.

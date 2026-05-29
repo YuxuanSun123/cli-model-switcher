@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v0.3.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          case "$tag" in
+            v*.*.*) ;;
+            *) echo "Release tag must look like v0.3.0, got: $tag" >&2; exit 1 ;;
+          esac
+          git rev-parse --verify "$tag" >/dev/null
+          version="${tag#v}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release tree
+        run: |
+          python -m py_compile scripts/cli_model_switcher.py scripts/validate_skill.py
+          python scripts/validate_skill.py .
+          python scripts/cli_model_switcher.py secret audit --scope all --fail
+
+      - name: Build source archives
+        shell: bash
+        run: |
+          tag="${{ steps.release.outputs.tag }}"
+          version="${{ steps.release.outputs.version }}"
+          mkdir -p dist
+          git archive --format=zip --prefix="cli-model-switcher-$version/" -o "dist/cli-model-switcher-$version.zip" "$tag"
+          git archive --format=tar --prefix="cli-model-switcher-$version/" "$tag" | gzip -9 > "dist/cli-model-switcher-$version.tar.gz"
+          ls -lh dist
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import re
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          version = os.environ["RELEASE_VERSION"]
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = re.compile(rf"^## \[{re.escape(version)}\].*?$", re.MULTILINE)
+          match = pattern.search(text)
+          if not match:
+              raise SystemExit(f"CHANGELOG.md does not contain a section for {version}")
+          next_match = re.search(r"^## \[", text[match.end():], re.MULTILINE)
+          section_end = match.end() + next_match.start() if next_match else len(text)
+          section = text[match.end():section_end].strip()
+          notes = f"""# CLI Model Switcher {tag}
+
+          ## Quick Install
+
+          Linux, macOS, or WSL:
+
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/{tag}/install.sh | sh -s -- --branch {tag}
+          ```
+
+          Windows PowerShell:
+
+          ```powershell
+          $installer = Join-Path $env:TEMP "cli-model-switcher-install.ps1"
+          irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/{tag}/install.ps1 -OutFile $installer
+          powershell -ExecutionPolicy Bypass -File $installer -Branch {tag}
+          ```
+
+          ## Changes
+
+          {section}
+          """
+          Path("RELEASE_NOTES.md").write_text("\n".join(line.strip() for line in notes.splitlines()) + "\n", encoding="utf-8")
+          PY
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --title "CLI Model Switcher $TAG" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" dist/* --title "CLI Model Switcher $TAG" --notes-file RELEASE_NOTES.md --verify-tag
+          fi
