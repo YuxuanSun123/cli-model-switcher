@@ -13,6 +13,7 @@ A local profile switcher for command-line AI coding agents. It lets you move bet
 - Share memory across agents through a neutral `AI_CLI_MEMORY` context file.
 - Manage API presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, Groq, Mistral, xAI, Together, Fireworks, DashScope, Moonshot, Zhipu, SiliconFlow, Volcengine, Cerebras, Perplexity, Novita, Azure OpenAI, and custom OpenAI-compatible endpoints.
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
+- Open several agents in one terminal workspace with `ai-workspace`, then switch between Codex, Claude, OpenCode, or recipes from that workspace.
 - Start and track AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printable fallback commands.
 - Audit state and memory for direct-looking secrets before export or migration.
 - Export/import portable profile state between machines.
@@ -69,6 +70,34 @@ Built-in recipes:
 - `local-lmstudio`
 - `custom-gateway`
 
+## Terminal Workspaces
+
+Use `ai-workspace` when you want one terminal interface for several agents.
+
+On Linux, macOS, or WSL with tmux, this is the closest experience to "switch Claude/Codex without leaving the terminal":
+
+```bash
+ai-workspace start codex claude opencode-openrouter --backend tmux --attach
+ai-workspace switch claude
+ai-workspace switch codex
+ai-workspace list
+ai-workspace stop
+```
+
+Inside tmux, use `Ctrl-b w` to choose an agent window, `Ctrl-b n/p` to move next/previous, and `Ctrl-b d` to detach without closing agents.
+
+On Windows, use Windows Terminal tabs from one command:
+
+```powershell
+ai-workspace start codex claude opencode-openrouter --backend wt
+```
+
+If no terminal workspace backend is available, print the exact launch commands:
+
+```powershell
+ai-workspace start codex claude --backend print
+```
+
 ## Sessions and Handoffs
 
 Sessions let you keep multiple AI CLIs open while they share the same switcher state and memory.
@@ -113,6 +142,8 @@ ai-use claude
 ai-use opencode-openrouter
 ai-use local-private
 
+ai-workspace start codex claude opencode-openrouter --backend tmux --attach
+ai-workspace switch claude
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
 
@@ -153,12 +184,15 @@ Generated helpers include:
 - `ai-recipe`
 - `ai-adapter`
 - `ai-session`
+- `ai-workspace`
 - `ai-handoff`
 - `ai-doctor`
 - `ai-secret`
 - `ai-remember`
 - `ai-recall`
 - `ai-memory`
+- `ai-page`
+- `ai-open-memory`
 - `ai-run`
 
 ## Shared Memory

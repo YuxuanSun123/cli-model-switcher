@@ -6,9 +6,16 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
+### Added
+
+- `workspace` command and `ai-workspace` shell helper for opening several agents in one terminal workspace and switching between them with tmux or Windows Terminal tabs.
+
 ### Fixed
 
 - Session launch commands now refresh the combined memory context using the requested `--cwd`, so project memory is included when starting an agent from another directory.
+- Session and workspace profile resolution now respects the requested `--cwd` when project-local profiles or aliases are present.
+- PowerShell wrapper generation now includes the previously missing `ai-page` helper.
+- PowerShell `ai-current`, `ai-status`, `ai-paths`, and `ai-list` helpers now forward optional arguments such as `--json`.
 - `ai-run` now uses the same profile environment builder as shell/session launch commands and includes `AI_CLI_API_PROVIDER` and `AI_CLI_API_KIND`.
 - Session lookup now resolves profile aliases, recipe aliases, and strategy names when switching, attaching, or stopping sessions.
 

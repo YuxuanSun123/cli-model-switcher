@@ -11,6 +11,7 @@ CLI Model Switcher 是一个本地命令行 AI 配置切换器。它可以在 Co
 - 通过中立的 `AI_CLI_MEMORY` 上下文文件在不同 agent 之间共享记忆。
 - 管理多种 API 预设，包括 OpenAI、Anthropic、Gemini、OpenRouter、DeepSeek、Ollama、LM Studio、Groq、Mistral、xAI、Together、Fireworks、DashScope、Moonshot、Zhipu、SiliconFlow、Volcengine、Cerebras、Perplexity、Novita、Azure OpenAI 和自定义 OpenAI 兼容端点。
 - 为 PowerShell、cmd.exe、Bash、Zsh、fish 和 Nushell 生成快捷命令。
+- 用 `ai-workspace` 在同一个终端工作区打开多个 agent，然后在 Codex、Claude、OpenCode 或配方之间切换。
 - 通过 tmux、Windows Terminal、PowerShell 新窗口或可复制 fallback 命令启动和记录多个 AI CLI 会话。
 - 在导出或迁移前扫描状态和记忆中的疑似密钥。
 - 支持跨机器 portable 导出和导入。
@@ -67,6 +68,34 @@ ai-recipe install claude-native gemini-cli opencode-deepseek --active claude
 - `local-lmstudio`
 - `custom-gateway`
 
+## 终端工作区
+
+当你想在同一个 terminal 界面里切换多个 agent 时，用 `ai-workspace`。
+
+Linux、macOS 或 WSL 上有 tmux 时，这是最接近“Codex 不中断、直接切到 Claude”的体验：
+
+```bash
+ai-workspace start codex claude opencode-openrouter --backend tmux --attach
+ai-workspace switch claude
+ai-workspace switch codex
+ai-workspace list
+ai-workspace stop
+```
+
+在 tmux 里面，用 `Ctrl-b w` 选择 agent 窗口，`Ctrl-b n/p` 前后切换，`Ctrl-b d` 只退出附着但不关闭 agent。
+
+Windows 上可以用 Windows Terminal 一次打开多个 tab：
+
+```powershell
+ai-workspace start codex claude opencode-openrouter --backend wt
+```
+
+没有可用的终端工作区后端时，可以打印精确启动命令：
+
+```powershell
+ai-workspace start codex claude --backend print
+```
+
 ## 会话和交接
 
 会话功能可以让多个 AI CLI 同时开着，并共享同一套 switcher 状态和记忆。
@@ -111,6 +140,8 @@ ai-use claude
 ai-use opencode-openrouter
 ai-use local-private
 
+ai-workspace start codex claude opencode-openrouter --backend tmux --attach
+ai-workspace switch claude
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
 
@@ -151,12 +182,15 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 - `ai-recipe`
 - `ai-adapter`
 - `ai-session`
+- `ai-workspace`
 - `ai-handoff`
 - `ai-doctor`
 - `ai-secret`
 - `ai-remember`
 - `ai-recall`
 - `ai-memory`
+- `ai-page`
+- `ai-open-memory`
 - `ai-run`
 
 ## 共享记忆
