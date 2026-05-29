@@ -1453,8 +1453,7 @@ def emit_env_reference(key: str, ref: str, shell: str) -> str:
     return f'[ -n "${{{ref}:-}}" ] && export {key}="${{{ref}}}"'
 
 
-def emit_env(profile: dict[str, Any], shell: str) -> str:
-    refresh_context_memory(find_project_root())
+def profile_env_values(profile: dict[str, Any]) -> dict[str, str]:
     values = {
         "AI_CLI_PROVIDER": profile["provider"],
         "AI_CLI_MODEL": profile.get("model", ""),
@@ -1465,9 +1464,19 @@ def emit_env(profile: dict[str, Any], shell: str) -> str:
         values["AI_CLI_API_PROVIDER"] = profile["api_provider"]
     if profile.get("api_kind"):
         values["AI_CLI_API_KIND"] = profile["api_kind"]
+    return {str(key): str(value) for key, value in values.items()}
+
+
+def project_root_for_env(start: Path | None = None) -> Path | None:
+    return find_project_root(start) if start else find_project_root()
+
+
+def emit_env(profile: dict[str, Any], shell: str, project_root: Path | None = None) -> str:
+    ensure_memory_files(project_root if project_root is not None else project_root_for_env())
+    values = profile_env_values(profile)
     lines: list[str] = []
     for key, value in values.items():
-        lines.append(emit_env_assignment(key, str(value), shell))
+        lines.append(emit_env_assignment(key, value, shell))
     for key, value in profile.get("env", {}).items():
         ref = env_reference_name(value)
         if ref:
@@ -1475,6 +1484,20 @@ def emit_env(profile: dict[str, Any], shell: str) -> str:
             continue
         lines.append(emit_env_assignment(str(key), str(value), shell))
     return "\n".join(lines)
+
+
+def profile_process_env(profile: dict[str, Any], project_root: Path | None = None) -> dict[str, str]:
+    ensure_memory_files(project_root if project_root is not None else project_root_for_env())
+    env = os.environ.copy()
+    env.update(profile_env_values(profile))
+    for key, value in profile.get("env", {}).items():
+        ref = env_reference_name(value)
+        if ref:
+            if os.environ.get(ref) is not None:
+                env[str(key)] = os.environ[ref]
+            continue
+        env[str(key)] = str(value)
+    return env
 
 
 def command_invocation(command: str, args: list[str], shell: str) -> str:
@@ -1491,11 +1514,12 @@ def command_invocation(command: str, args: list[str], shell: str) -> str:
 
 def profile_launch_script(profile: dict[str, Any], shell: str, args: list[str], cwd: Path | None = None) -> str:
     cwd = (cwd or Path.cwd()).resolve()
+    project_root = project_root_for_env(cwd)
     command = str(profile.get("command", ""))
     if shell == "powershell":
-        lines = [f"Set-Location -LiteralPath {shell_quote(str(cwd), shell)}", emit_env(profile, shell), command_invocation(command, args, shell)]
+        lines = [f"Set-Location -LiteralPath {shell_quote(str(cwd), shell)}", emit_env(profile, shell, project_root), command_invocation(command, args, shell)]
         return "\n".join(line for line in lines if line)
-    lines = [f"cd {shell_quote(str(cwd), 'bash')}", emit_env(profile, "bash"), command_invocation(command, args, "bash")]
+    lines = [f"cd {shell_quote(str(cwd), 'bash')}", emit_env(profile, "bash", project_root), command_invocation(command, args, "bash")]
     return "\n".join(line for line in lines if line)
 
 
@@ -2491,22 +2515,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     state, _ = effective_state()
     profile = active_profile(state)
     command = [str(profile.get("command"))] + args.args
-    env = os.environ.copy()
-    env.update(
-        {
-            "AI_CLI_PROVIDER": str(profile["provider"]),
-            "AI_CLI_MODEL": str(profile.get("model", "")),
-            "AI_CLI_COMMAND": str(profile.get("command", "")),
-            "AI_CLI_MEMORY": str(profile.get("memory_path", CONTEXT_MEMORY_PATH)),
-        }
-    )
-    for key, value in profile.get("env", {}).items():
-        ref = env_reference_name(value)
-        if ref:
-            if os.environ.get(ref) is not None:
-                env[str(key)] = os.environ[ref]
-            continue
-        env[key] = str(value)
+    env = profile_process_env(profile, project_root_for_env())
     raise SystemExit(subprocess.call(command, env=env))
 
 
@@ -2586,12 +2595,28 @@ def session_status(record: dict[str, Any]) -> str:
     return "command"
 
 
+def session_target_candidates(state: dict[str, Any], target: str) -> set[str]:
+    candidates = {target}
+    try:
+        candidates.add(resolve_profile_name(state, target))
+    except SystemExit:
+        pass
+    if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+        candidates.add(recipe_profile_name(target))
+    if target in STRATEGY_PRESETS:
+        candidates.add(str(STRATEGY_PRESETS[target]["profile"]))
+    candidates.update(session_safe_name(item) for item in list(candidates))
+    candidates.update(session_backend_id(item) for item in list(candidates))
+    return candidates
+
+
 def session_record_for_target(state: dict[str, Any], target: str) -> tuple[str, dict[str, Any] | None]:
     sessions = state.setdefault("sessions", {})
+    candidates = session_target_candidates(state, target)
     if target in sessions:
         return target, sessions[target]
     for name, record in sessions.items():
-        if record.get("profile") == target or record.get("backend_id") == target:
+        if name in candidates or str(record.get("profile", "")) in candidates or str(record.get("backend_id", "")) in candidates:
             return name, record
     return target, None
 

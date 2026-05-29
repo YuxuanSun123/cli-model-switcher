@@ -6,7 +6,11 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Fixed
+
+- Session launch commands now refresh the combined memory context using the requested `--cwd`, so project memory is included when starting an agent from another directory.
+- `ai-run` now uses the same profile environment builder as shell/session launch commands and includes `AI_CLI_API_PROVIDER` and `AI_CLI_API_KIND`.
+- Session lookup now resolves profile aliases, recipe aliases, and strategy names when switching, attaching, or stopping sessions.
 
 ## [0.2.0] - 2026-05-29
 

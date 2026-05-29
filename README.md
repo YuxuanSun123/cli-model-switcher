@@ -77,6 +77,7 @@ Sessions let you keep multiple AI CLIs open while they share the same switcher s
 ai-session start codex
 ai-session start claude
 ai-session start opencode-openrouter --backend wt
+ai-session start claude --backend print --cwd C:\path\to\project
 ai-session list
 ```
 
@@ -94,6 +95,7 @@ If no supported session backend is available, print the launch command instead:
 ```powershell
 ai-session start claude --backend print
 ai-session start opencode-openrouter --backend print --arg=--debug
+ai-session stop router
 ```
 
 Use handoff notes to pass work between agents through shared memory:

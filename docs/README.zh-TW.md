@@ -75,6 +75,7 @@ ai-recipe install claude-native gemini-cli opencode-deepseek --active claude
 ai-session start codex
 ai-session start claude
 ai-session start opencode-openrouter --backend wt
+ai-session start claude --backend print --cwd C:\path\to\project
 ai-session list
 ```
 
@@ -92,6 +93,7 @@ ai-session stop claude
 ```powershell
 ai-session start claude --backend print
 ai-session start opencode-openrouter --backend print --arg=--debug
+ai-session stop router
 ```
 
 用 handoff 把任務交接寫進共用記憶：
