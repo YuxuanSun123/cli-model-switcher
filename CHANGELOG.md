@@ -6,6 +6,10 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [0.2.0] - 2026-05-29
+
 ### Added
 
 - `session` command for starting, listing, switching, attaching, and stopping managed AI CLI sessions.
