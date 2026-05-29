@@ -909,6 +909,7 @@ def save_state(state: dict[str, Any]) -> None:
 def normalize_state(state: dict[str, Any]) -> dict[str, Any]:
     state.setdefault("active", "codex")
     state.setdefault("aliases", {})
+    state.setdefault("sessions", {})
     model_aliases = state.setdefault("model_aliases", {})
     for alias, payload in clone_model_aliases().items():
         model_aliases.setdefault(alias, payload)
@@ -1271,6 +1272,8 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
         "function ai-strategy",
         "function ai-recipe",
         "function ai-adapter",
+        "function ai-session",
+        "function ai-handoff",
         "function ai-memory",
         "function ai-secret",
     ]
@@ -1288,7 +1291,17 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
                 add_repair_event(events, "ok", "PowerShell wrapper", str(ps_profile))
     cmd_dir = Path.home() / "bin" / "ai-cli-switcher"
     if cmd_dir.exists():
-        required_cmd = ["ai-api.cmd", "ai-model.cmd", "ai-strategy.cmd", "ai-recipe.cmd", "ai-adapter.cmd", "ai-memory.cmd", "ai-secret.cmd"]
+        required_cmd = [
+            "ai-api.cmd",
+            "ai-model.cmd",
+            "ai-strategy.cmd",
+            "ai-recipe.cmd",
+            "ai-adapter.cmd",
+            "ai-session.cmd",
+            "ai-handoff.cmd",
+            "ai-memory.cmd",
+            "ai-secret.cmd",
+        ]
         missing_cmd = [name for name in required_cmd if not (cmd_dir / name).exists()]
         if missing_cmd and fix:
             cmd_install_cmd(argparse.Namespace(dir=str(cmd_dir), dry_run=False))
@@ -1462,6 +1475,35 @@ def emit_env(profile: dict[str, Any], shell: str) -> str:
             continue
         lines.append(emit_env_assignment(str(key), str(value), shell))
     return "\n".join(lines)
+
+
+def command_invocation(command: str, args: list[str], shell: str) -> str:
+    if not command:
+        raise SystemExit("Profile has no command configured.")
+    if shell == "powershell":
+        parts = [f"& {shell_quote(command, shell)}"]
+        parts.extend(shell_quote(item, shell) for item in args)
+        return " ".join(parts)
+    parts = [f"exec {shell_quote(command, 'bash')}"]
+    parts.extend(shell_quote(item, "bash") for item in args)
+    return " ".join(parts)
+
+
+def profile_launch_script(profile: dict[str, Any], shell: str, args: list[str], cwd: Path | None = None) -> str:
+    cwd = (cwd or Path.cwd()).resolve()
+    command = str(profile.get("command", ""))
+    if shell == "powershell":
+        lines = [f"Set-Location -LiteralPath {shell_quote(str(cwd), shell)}", emit_env(profile, shell), command_invocation(command, args, shell)]
+        return "\n".join(line for line in lines if line)
+    lines = [f"cd {shell_quote(str(cwd), 'bash')}", emit_env(profile, "bash"), command_invocation(command, args, "bash")]
+    return "\n".join(line for line in lines if line)
+
+
+def profile_launch_command(profile: dict[str, Any], shell: str, args: list[str], cwd: Path | None = None) -> str:
+    script = profile_launch_script(profile, shell, args, cwd)
+    if shell == "powershell":
+        return f"powershell -NoExit -ExecutionPolicy Bypass -Command {shell_quote(script, shell)}"
+    return f"bash -lc {shell_quote(script, 'bash')}"
 
 
 def cmd_init(_: argparse.Namespace) -> None:
@@ -2468,6 +2510,228 @@ def cmd_run(args: argparse.Namespace) -> None:
     raise SystemExit(subprocess.call(command, env=env))
 
 
+def session_safe_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip().lower()).strip("-")
+    return cleaned or "agent"
+
+
+def session_backend_id(name: str) -> str:
+    return "ai-" + session_safe_name(name)
+
+
+def default_session_backend() -> str:
+    if shutil.which("tmux"):
+        return "tmux"
+    if os.name == "nt" and shutil.which("wt"):
+        return "wt"
+    if os.name == "nt":
+        return "powershell"
+    return "print"
+
+
+def resolve_session_backend(requested: str) -> str:
+    return default_session_backend() if requested == "auto" else requested
+
+
+def tmux_has_session(session_id: str) -> bool:
+    if not shutil.which("tmux"):
+        return False
+    result = subprocess.run(["tmux", "has-session", "-t", session_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return result.returncode == 0
+
+
+def tmux_attach_or_switch(session_id: str) -> None:
+    if os.environ.get("TMUX"):
+        subprocess.run(["tmux", "switch-client", "-t", session_id], check=True)
+        return
+    subprocess.run(["tmux", "attach-session", "-t", session_id], check=True)
+
+
+def start_tmux_session(session_id: str, script: str, attach: bool, reuse: bool) -> str:
+    if not shutil.which("tmux"):
+        raise SystemExit("tmux is not installed or not on PATH.")
+    if tmux_has_session(session_id):
+        if not reuse:
+            raise SystemExit(f"tmux session {session_id!r} already exists. Use --reuse or stop it first.")
+    else:
+        subprocess.run(["tmux", "new-session", "-d", "-s", session_id, script], check=True)
+    if attach:
+        tmux_attach_or_switch(session_id)
+    return f"tmux:{session_id}"
+
+
+def start_windows_terminal_session(title: str, script: str) -> str:
+    wt = shutil.which("wt")
+    if not wt:
+        raise SystemExit("Windows Terminal wt.exe is not installed or not on PATH.")
+    subprocess.Popen([wt, "new-tab", "--title", title, "powershell", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", script])
+    return f"wt:{title}"
+
+
+def start_powershell_session(title: str, script: str) -> str:
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        raise SystemExit("No PowerShell executable found.")
+    creationflags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
+    subprocess.Popen([powershell, "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", script], creationflags=creationflags)
+    return f"powershell:{title}"
+
+
+def session_status(record: dict[str, Any]) -> str:
+    backend = str(record.get("backend", ""))
+    if backend == "tmux":
+        return "running" if tmux_has_session(str(record.get("backend_id", ""))) else "missing"
+    if backend in {"wt", "powershell"}:
+        return "external"
+    return "command"
+
+
+def session_record_for_target(state: dict[str, Any], target: str) -> tuple[str, dict[str, Any] | None]:
+    sessions = state.setdefault("sessions", {})
+    if target in sessions:
+        return target, sessions[target]
+    for name, record in sessions.items():
+        if record.get("profile") == target or record.get("backend_id") == target:
+            return name, record
+    return target, None
+
+
+def resolve_profile_for_session(target: str) -> tuple[dict[str, Any], str, dict[str, Any], Path | None]:
+    state = normalize_state(ensure_state())
+    if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+        profile_name, _ = install_recipe_into_state(state, target, False)
+        save_state(state)
+        return resolve_named_profile(profile_name)
+    try:
+        return resolve_named_profile(target)
+    except SystemExit:
+        strategy_profile = ensure_strategy_profile(state, target)
+        if strategy_profile:
+            save_state(state)
+            return resolve_named_profile(strategy_profile)
+        raise
+
+
+def cmd_session(args: argparse.Namespace) -> None:
+    state = normalize_state(ensure_state())
+    sessions = state.setdefault("sessions", {})
+
+    if args.action == "list":
+        payload = []
+        for name, record in sorted(sessions.items()):
+            item = dict(record)
+            item["name"] = name
+            item["status"] = session_status(record)
+            payload.append(item)
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not payload:
+            print("No managed AI sessions recorded.")
+            return
+        for item in payload:
+            print(f"{item['name']}: {item.get('profile')} [{item.get('backend')}] {item.get('status')} ({item.get('backend_id')})")
+        return
+
+    if args.action == "start":
+        if not args.target:
+            raise SystemExit("session start requires a profile, alias, strategy, or recipe.")
+        _, profile_name, profile, _ = resolve_profile_for_session(args.target)
+        state = normalize_state(ensure_state())
+        sessions = state.setdefault("sessions", {})
+        backend = resolve_session_backend(args.backend)
+        session_name = session_safe_name(args.session_name or profile_name)
+        backend_id = session_backend_id(session_name)
+        cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path.cwd().resolve()
+        extra_args = list(args.arg or [])
+        title = f"ai:{session_name}"
+        shell = "powershell" if backend in {"wt", "powershell"} or os.name == "nt" else "bash"
+        script = profile_launch_script(profile, shell, extra_args, cwd)
+
+        if backend == "tmux":
+            detail = start_tmux_session(backend_id, script, args.attach, args.reuse)
+        elif backend == "wt":
+            detail = start_windows_terminal_session(title, script)
+        elif backend == "powershell":
+            detail = start_powershell_session(title, script)
+        elif backend == "print":
+            print(profile_launch_command(profile, shell, extra_args, cwd))
+            detail = "printed launch command"
+        else:
+            raise SystemExit(f"Unknown session backend {backend!r}")
+
+        sessions[session_name] = {
+            "profile": profile_name,
+            "backend": backend,
+            "backend_id": backend_id,
+            "title": title,
+            "cwd": str(cwd),
+            "command": profile.get("command"),
+            "model": profile.get("model"),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        save_state(state)
+        print(f"Session {session_name}: {detail}")
+        return
+
+    if args.action in {"switch", "attach"}:
+        if not args.target:
+            raise SystemExit(f"session {args.action} requires a session name or profile.")
+        name, record = session_record_for_target(state, args.target)
+        if not record:
+            raise SystemExit(f"Unknown session {args.target!r}. Use ai-session list or ai-session start.")
+        if record.get("backend") != "tmux":
+            print(f"Session {name} uses {record.get('backend')}; direct terminal switching is only available for tmux.")
+            print(f"Start another window/tab with: ai-session start {record.get('profile')} --backend {record.get('backend')} --reuse")
+            return
+        backend_id = str(record.get("backend_id", ""))
+        if not tmux_has_session(backend_id):
+            raise SystemExit(f"tmux session {backend_id!r} is not running.")
+        tmux_attach_or_switch(backend_id)
+        return
+
+    if args.action == "stop":
+        if not args.target:
+            raise SystemExit("session stop requires a session name or profile.")
+        name, record = session_record_for_target(state, args.target)
+        if not record:
+            raise SystemExit(f"Unknown session {args.target!r}.")
+        if record.get("backend") == "tmux" and tmux_has_session(str(record.get("backend_id", ""))):
+            subprocess.run(["tmux", "kill-session", "-t", str(record.get("backend_id"))], check=True)
+            print(f"Stopped tmux session {record.get('backend_id')}")
+        else:
+            print(f"Forgot session record {name}. Stop external windows manually if they are still running.")
+        sessions.pop(name, None)
+        save_state(state)
+        return
+
+    raise SystemExit(f"Unknown session action {args.action!r}")
+
+
+def cmd_handoff(args: argparse.Namespace) -> None:
+    target = args.profile
+    text = " ".join(args.text).strip()
+    if not text:
+        raise SystemExit("handoff requires a note.")
+    tags = list(args.tag or []) + ["handoff", session_safe_name(target)]
+    cmd_remember(argparse.Namespace(scope=args.scope, tag=tags, duplicate=args.duplicate, force=args.force, text=[text]))
+    if args.no_start:
+        return
+    cmd_session(
+        argparse.Namespace(
+            action="start",
+            target=target,
+            backend=args.backend,
+            session_name=args.session_name,
+            cwd=args.cwd,
+            attach=args.attach,
+            reuse=True,
+            arg=[],
+            json=False,
+        )
+    )
+
+
 def powershell_functions() -> str:
     script = str(SCRIPT_PATH).replace("'", "''")
     return f"""
@@ -2530,6 +2794,14 @@ function ai-recipe {{
 
 function ai-adapter {{
   Invoke-AiCliSwitcher adapter @args
+}}
+
+function ai-session {{
+  Invoke-AiCliSwitcher session @args
+}}
+
+function ai-handoff {{
+  Invoke-AiCliSwitcher handoff @args
 }}
 
 function ai-select {{
@@ -2638,6 +2910,14 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} adapter %*
 """,
+        "ai-session.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} session %*
+""",
+        "ai-handoff.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} handoff %*
+""",
         "ai-paths.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} paths %*
@@ -2717,6 +2997,8 @@ ai-model() {{ _ai_cli_switcher model "$@"; }}
 ai-strategy() {{ _ai_cli_switcher strategy "$@"; }}
 ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
+ai-session() {{ _ai_cli_switcher session "$@"; }}
+ai-handoff() {{ _ai_cli_switcher handoff "$@"; }}
 ai-doctor() {{ _ai_cli_switcher doctor "$@"; }}
 ai-secret() {{ _ai_cli_switcher secret "$@"; }}
 ai-remember() {{ _ai_cli_switcher remember "$@"; }}
@@ -2769,6 +3051,8 @@ function ai-model; _ai_cli_switcher model $argv; end
 function ai-strategy; _ai_cli_switcher strategy $argv; end
 function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
+function ai-session; _ai_cli_switcher session $argv; end
+function ai-handoff; _ai_cli_switcher handoff $argv; end
 function ai-doctor; _ai_cli_switcher doctor $argv; end
 function ai-secret; _ai_cli_switcher secret $argv; end
 function ai-remember; _ai_cli_switcher remember $argv; end
@@ -3555,6 +3839,39 @@ def build_parser() -> argparse.ArgumentParser:
     recipe_parser.add_argument("--dry-run", action="store_true")
     recipe_parser.add_argument("--json", action="store_true")
     recipe_parser.set_defaults(func=cmd_recipe)
+
+    session_parser = sub.add_parser("session", help="Start, list, switch, attach, or stop managed AI CLI sessions.")
+    session_sub = session_parser.add_subparsers(dest="action", required=True)
+    session_list_parser = session_sub.add_parser("list", help="List managed AI CLI sessions.")
+    session_list_parser.add_argument("--json", action="store_true")
+    session_list_parser.set_defaults(func=cmd_session)
+    session_start_parser = session_sub.add_parser("start", help="Start a profile, alias, strategy, or recipe in a managed session.")
+    session_start_parser.add_argument("target", help="Profile, alias, strategy, or recipe.")
+    session_start_parser.add_argument("--backend", choices=["auto", "tmux", "wt", "powershell", "print"], default="auto")
+    session_start_parser.add_argument("--name", dest="session_name", help="Session record name. Defaults to the resolved profile.")
+    session_start_parser.add_argument("--cwd", help="Working directory for the launched agent session.")
+    session_start_parser.add_argument("--attach", action="store_true", help="Attach or switch to tmux session after starting.")
+    session_start_parser.add_argument("--reuse", action="store_true", help="Reuse an existing tmux session with the same name.")
+    session_start_parser.add_argument("--arg", action="append", default=[], help="Extra argument passed to the launched CLI. Repeat as needed; use --arg=--flag for option-like values.")
+    session_start_parser.set_defaults(func=cmd_session)
+    for action_name in ["switch", "attach", "stop"]:
+        action_parser = session_sub.add_parser(action_name, help=f"{action_name.capitalize()} a managed AI CLI session.")
+        action_parser.add_argument("target", help="Session name, profile, or backend id.")
+        action_parser.set_defaults(func=cmd_session)
+
+    handoff_parser = sub.add_parser("handoff", help="Write a handoff note to shared memory and open a target AI session.")
+    handoff_parser.add_argument("profile", help="Target profile, alias, strategy, or recipe.")
+    handoff_parser.add_argument("text", nargs="+", help="Handoff note to store in session memory.")
+    handoff_parser.add_argument("--scope", choices=["global", "project", "session"], default="session")
+    handoff_parser.add_argument("--tag", action="append", default=[], help="Extra tag for the handoff memory entry.")
+    handoff_parser.add_argument("--backend", choices=["auto", "tmux", "wt", "powershell", "print"], default="auto")
+    handoff_parser.add_argument("--name", dest="session_name", help="Session record name for the target agent.")
+    handoff_parser.add_argument("--cwd", help="Working directory for the launched agent session.")
+    handoff_parser.add_argument("--attach", action="store_true", help="Attach or switch to tmux after starting.")
+    handoff_parser.add_argument("--no-start", action="store_true", help="Only write memory; do not start a session.")
+    handoff_parser.add_argument("--duplicate", action="store_true")
+    handoff_parser.add_argument("--force", action="store_true", help="Save even if the handoff note looks like a secret.")
+    handoff_parser.set_defaults(func=cmd_handoff)
 
     add_parser = sub.add_parser("add", help="Add a profile.")
     add_parser.add_argument("name")

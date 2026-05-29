@@ -54,6 +54,11 @@ py -3.12 scripts/cli_model_switcher.py recipe list
 py -3.12 scripts/cli_model_switcher.py recipe show opencode-openrouter
 py -3.12 scripts/cli_model_switcher.py recipe install opencode-openrouter --use
 py -3.12 scripts/cli_model_switcher.py recipe install claude-native gemini-cli opencode-deepseek --active claude
+py -3.12 scripts/cli_model_switcher.py session start claude --backend print
+py -3.12 scripts/cli_model_switcher.py session start claude --backend tmux --attach
+py -3.12 scripts/cli_model_switcher.py session list
+py -3.12 scripts/cli_model_switcher.py session switch claude
+py -3.12 scripts/cli_model_switcher.py handoff claude "Review the current Codex work and look for regressions."
 py -3.12 scripts/cli_model_switcher.py profile local --command opencode --model local-model --alias l --use
 py -3.12 scripts/cli_model_switcher.py profile deepseek --command opencode --api deepseek --model deepseek-chat --alias ds --use
 py -3.12 scripts/cli_model_switcher.py add gemini --command gemini --model gemini-2.5-pro
@@ -139,6 +144,8 @@ Prefer script commands over manual JSON edits:
 - `model alias set NAME PROVIDER MODEL --cap KEY=VALUE` adds custom model aliases such as `fast`, `cheap`, `code`, or `local`.
 - `strategy install` creates task aliases so `use code-fast`, `use code-best`, `use local-private`, and `use cheap-long-context` switch to the matching profile/model/API.
 - `recipe list`, `recipe show NAME`, and `recipe install NAME --use` install common profile bundles without remembering long arguments. Built-in recipes include `codex-openai`, `claude-native`, `gemini-cli`, `opencode-openrouter`, `opencode-openrouter-best`, `opencode-deepseek`, `local-ollama`, `local-lmstudio`, and `custom-gateway`.
+- `session start PROFILE --backend auto|tmux|wt|powershell|print`, `session list`, `session switch NAME`, and `session stop NAME` manage multiple AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printed fallback commands.
+- `handoff PROFILE "NOTE"` writes a tagged session-memory handoff note and starts the target session so another agent can continue with the shared context.
 - `add NAME --command COMMAND --model MODEL` creates a new profile.
 - `add NAME --project --command COMMAND --model MODEL` creates a project-local profile override.
 - `set NAME --model MODEL --env KEY=VALUE` updates an existing profile.
@@ -159,7 +166,7 @@ Prefer script commands over manual JSON edits:
 - `doctor` checks command availability, env vars, state files, and memory files.
 - `doctor --fix` repairs missing or corrupt state, invalid active profiles, broken aliases, missing memory files, and stale managed wrappers when possible. Use `--json` for automation.
 - `secret audit --scope all|state|project|memory` scans profiles and memory without printing secret values. Use `--fail` in scripts to return nonzero when findings exist.
-- `install-powershell --profile $PROFILE` writes `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
+- `install-powershell --profile $PROFILE` writes `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-session`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
 - `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ai-use.cmd`, `ai-select.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
 - `install-shell --output FILE` writes Bash/Zsh helper functions.
 - `install-fish --output FILE` writes fish helper functions.

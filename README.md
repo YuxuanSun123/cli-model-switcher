@@ -13,6 +13,7 @@ A local profile switcher for command-line AI coding agents. It lets you move bet
 - Share memory across agents through a neutral `AI_CLI_MEMORY` context file.
 - Manage API presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, Groq, Mistral, xAI, Together, Fireworks, DashScope, Moonshot, Zhipu, SiliconFlow, Volcengine, Cerebras, Perplexity, Novita, Azure OpenAI, and custom OpenAI-compatible endpoints.
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
+- Start and track AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printable fallback commands.
 - Audit state and memory for direct-looking secrets before export or migration.
 - Export/import portable profile state between machines.
 
@@ -68,6 +69,40 @@ Built-in recipes:
 - `local-lmstudio`
 - `custom-gateway`
 
+## Sessions and Handoffs
+
+Sessions let you keep multiple AI CLIs open while they share the same switcher state and memory.
+
+```powershell
+ai-session start codex
+ai-session start claude
+ai-session start opencode-openrouter --backend wt
+ai-session list
+```
+
+On Linux, macOS, or WSL with tmux:
+
+```bash
+ai-session start codex --backend tmux --attach
+ai-session start claude --backend tmux
+ai-session switch claude
+ai-session stop claude
+```
+
+If no supported session backend is available, print the launch command instead:
+
+```powershell
+ai-session start claude --backend print
+ai-session start opencode-openrouter --backend print --arg=--debug
+```
+
+Use handoff notes to pass work between agents through shared memory:
+
+```powershell
+ai-handoff claude "Review the current Codex changes and look for regressions."
+ai-handoff opencode-openrouter "Continue implementation using the shared memory context."
+```
+
 ## Common Commands
 
 ```powershell
@@ -75,6 +110,9 @@ ai-use codex
 ai-use claude
 ai-use opencode-openrouter
 ai-use local-private
+
+ai-session start claude
+ai-handoff claude "Review this task from another angle."
 
 ai-profile gateway --command opencode --api custom-openai --base-url https://gateway.example/v1 --api-key-env GATEWAY_API_KEY --use
 ai-api test gateway --skip-network
@@ -112,6 +150,8 @@ Generated helpers include:
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-session`
+- `ai-handoff`
 - `ai-doctor`
 - `ai-secret`
 - `ai-remember`

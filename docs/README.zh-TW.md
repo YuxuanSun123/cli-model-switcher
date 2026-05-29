@@ -11,6 +11,7 @@ CLI Model Switcher 是一個本機命令列 AI 設定切換器。它可以在 Co
 - 透過中立的 `AI_CLI_MEMORY` 上下文檔案在不同 agent 之間共用記憶。
 - 管理多種 API 預設，包括 OpenAI、Anthropic、Gemini、OpenRouter、DeepSeek、Ollama、LM Studio、Groq、Mistral、xAI、Together、Fireworks、DashScope、Moonshot、Zhipu、SiliconFlow、Volcengine、Cerebras、Perplexity、Novita、Azure OpenAI 和自訂 OpenAI 相容端點。
 - 為 PowerShell、cmd.exe、Bash、Zsh、fish 和 Nushell 產生快捷命令。
+- 透過 tmux、Windows Terminal、PowerShell 新視窗或可複製 fallback 命令啟動和記錄多個 AI CLI 會話。
 - 在匯出或遷移前掃描狀態和記憶中的疑似密鑰。
 - 支援跨機器 portable 匯出和匯入。
 
@@ -66,6 +67,40 @@ ai-recipe install claude-native gemini-cli opencode-deepseek --active claude
 - `local-lmstudio`
 - `custom-gateway`
 
+## 會話和交接
+
+會話功能可以讓多個 AI CLI 同時開著，並共用同一套 switcher 狀態和記憶。
+
+```powershell
+ai-session start codex
+ai-session start claude
+ai-session start opencode-openrouter --backend wt
+ai-session list
+```
+
+Linux、macOS 或 WSL 上有 tmux 時：
+
+```bash
+ai-session start codex --backend tmux --attach
+ai-session start claude --backend tmux
+ai-session switch claude
+ai-session stop claude
+```
+
+沒有可用後端時，可以只列印啟動命令：
+
+```powershell
+ai-session start claude --backend print
+ai-session start opencode-openrouter --backend print --arg=--debug
+```
+
+用 handoff 把任務交接寫進共用記憶：
+
+```powershell
+ai-handoff claude "Review the current Codex changes and look for regressions."
+ai-handoff opencode-openrouter "Continue implementation using the shared memory context."
+```
+
 ## 常用命令
 
 ```powershell
@@ -73,6 +108,9 @@ ai-use codex
 ai-use claude
 ai-use opencode-openrouter
 ai-use local-private
+
+ai-session start claude
+ai-handoff claude "Review this task from another angle."
 
 ai-profile gateway --command opencode --api custom-openai --base-url https://gateway.example/v1 --api-key-env GATEWAY_API_KEY --use
 ai-api test gateway --skip-network
@@ -110,6 +148,8 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-session`
+- `ai-handoff`
 - `ai-doctor`
 - `ai-secret`
 - `ai-remember`
