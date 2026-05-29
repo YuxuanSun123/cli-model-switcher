@@ -1,0 +1,4 @@
+interface:
+  display_name: "CLI Model Switcher"
+  short_description: "Switch CLI AI profiles with recipes, guided setup, API presets, shared memory, and portable state."
+  default_prompt: "Use $cli-model-switcher to set up CLI AI model profiles with setup wizard, profile recipes, API tests, model strategies, adapters, shared memory, doctor repairs, secret audits, and portable imports/exports."
