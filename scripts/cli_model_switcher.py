@@ -28,6 +28,8 @@ CONTEXT_MEMORY_PATH = MEMORY_DIR / "context.md"
 PROJECT_CONFIG_NAME = ".ai-cli-switcher.json"
 PROJECT_MEMORY_NAME = ".ai-cli-memory.md"
 SCRIPT_PATH = Path(__file__).resolve()
+WORKSPACE_FALLBACK_TARGETS = ["codex", "claude", "opencode"]
+WORKSPACE_TARGET_PRIORITY = ["codex", "claude", "opencode-openrouter", "opencode", "gemini", "local-ollama", "local-lmstudio"]
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("OpenAI key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")),
@@ -911,6 +913,7 @@ def normalize_state(state: dict[str, Any]) -> dict[str, Any]:
     state.setdefault("aliases", {})
     state.setdefault("sessions", {})
     state.setdefault("workspaces", {})
+    state.setdefault("workspace_targets", [])
     model_aliases = state.setdefault("model_aliases", {})
     for alias, payload in clone_model_aliases().items():
         model_aliases.setdefault(alias, payload)
@@ -986,6 +989,8 @@ def effective_state(start: Path | None = None) -> tuple[dict[str, Any], Path | N
         merged = json.loads(json.dumps(state))
         merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
         merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
+        if project_config.get("workspace_targets"):
+            merged["workspace_targets"] = project_config["workspace_targets"]
         if project_config.get("active"):
             merged["active"] = project_config["active"]
         merged["_project_config"] = str(config_path)
@@ -2628,18 +2633,18 @@ def session_record_for_target(state: dict[str, Any], target: str) -> tuple[str, 
 
 def resolve_profile_for_session(target: str, start: Path | None = None) -> tuple[dict[str, Any], str, dict[str, Any], Path | None]:
     state = normalize_state(ensure_state())
-    if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
-        profile_name, _ = install_recipe_into_state(state, target, False)
-        save_state(state)
-        return resolve_named_profile(profile_name, start)
     try:
         return resolve_named_profile(target, start)
-    except SystemExit:
+    except SystemExit as profile_error:
         strategy_profile = ensure_strategy_profile(state, target)
         if strategy_profile:
             save_state(state)
             return resolve_named_profile(strategy_profile, start)
-        raise
+        if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+            profile_name, _ = install_recipe_into_state(state, target, False)
+            save_state(state)
+            return resolve_named_profile(profile_name, start)
+        raise profile_error
 
 
 def cmd_session(args: argparse.Namespace) -> None:
@@ -2752,6 +2757,76 @@ def default_workspace_backend() -> str:
 
 def resolve_workspace_backend(requested: str) -> str:
     return default_workspace_backend() if requested == "auto" else requested
+
+
+def split_workspace_targets(values: list[str] | None) -> list[str]:
+    targets: list[str] = []
+    for value in values or []:
+        for item in str(value).split(","):
+            item = item.strip()
+            if item:
+                targets.append(item)
+    return targets
+
+
+def dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def target_profile_exists(state: dict[str, Any], target: str) -> bool:
+    profiles = state.get("profiles", {})
+    aliases = state.get("aliases", {})
+    if target in profiles or target in aliases or target in STRATEGY_PRESETS:
+        return True
+    if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+        return recipe_profile_name(target) in profiles
+    try:
+        return resolve_profile_name(state, target) in profiles
+    except SystemExit:
+        return False
+
+
+def configured_workspace_targets(state: dict[str, Any]) -> list[str]:
+    raw = state.get("workspace_targets", [])
+    return dedupe_preserve_order(split_workspace_targets([str(item) for item in raw] if isinstance(raw, list) else [str(raw)]))
+
+
+def suggested_workspace_targets(state: dict[str, Any]) -> list[str]:
+    targets: list[str] = []
+    active = state.get("active")
+    if isinstance(active, str):
+        try:
+            active = resolve_profile_name(state, active)
+        except SystemExit:
+            pass
+        if isinstance(active, str) and target_profile_exists(state, active):
+            targets.append(active)
+    for target in WORKSPACE_TARGET_PRIORITY:
+        if target_profile_exists(state, target):
+            targets.append(target)
+    if not targets:
+        targets.extend(item for item in WORKSPACE_FALLBACK_TARGETS if target_profile_exists(state, item))
+    return dedupe_preserve_order(targets)
+
+
+def workspace_targets_for_start(state: dict[str, Any], requested: list[str] | None) -> tuple[list[str], str]:
+    targets = dedupe_preserve_order(split_workspace_targets(requested))
+    if targets:
+        return targets, "requested"
+    targets = configured_workspace_targets(state)
+    if targets:
+        return targets, "configured"
+    targets = suggested_workspace_targets(state)
+    if targets:
+        return targets, "suggested"
+    raise SystemExit("No workspace targets are configured. Run ai-workspace targets set codex claude opencode first.")
 
 
 def workspace_status(record: dict[str, Any]) -> str:
@@ -2885,6 +2960,41 @@ def unique_workspace_session_name(profile_name: str, used: set[str]) -> str:
     return name
 
 
+def workspace_used_session_names(record: dict[str, Any] | None = None) -> set[str]:
+    if not record:
+        return set()
+    return {str(entry.get("session_name")) for entry in record.get("entries", []) if entry.get("session_name")}
+
+
+def build_workspace_entries(targets: list[str], backend: str, cwd: Path, extra_args: list[str], existing: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    shell = "powershell" if backend == "wt" or os.name == "nt" else "bash"
+    entries: list[dict[str, Any]] = []
+    used_names = workspace_used_session_names(existing)
+    for target in targets:
+        _, profile_name, profile, _ = resolve_profile_for_session(target, cwd)
+        session_name = unique_workspace_session_name(profile_name, used_names)
+        script = profile_launch_script(profile, shell, extra_args, cwd)
+        entries.append({
+            "target": target,
+            "profile": profile_name,
+            "session_name": session_name,
+            "title": f"ai:{session_name}",
+            "cwd": str(cwd),
+            "command": profile.get("command"),
+            "model": profile.get("model"),
+            "script": script,
+            "launch_command": profile_launch_command(profile, shell, extra_args, cwd),
+        })
+    return entries
+
+
+def print_workspace_shortcuts(backend: str) -> None:
+    if backend == "tmux":
+        print("tmux shortcuts: Ctrl-b w chooses an agent window; Ctrl-b n/p moves next/previous; Ctrl-b d detaches.")
+    elif backend == "wt":
+        print("Windows Terminal shortcuts: Ctrl+Tab switches tabs; Alt+number jumps to a tab.")
+
+
 def cmd_workspace(args: argparse.Namespace) -> None:
     state = normalize_state(ensure_state())
     workspaces = state.setdefault("workspaces", {})
@@ -2907,36 +3017,68 @@ def cmd_workspace(args: argparse.Namespace) -> None:
             print(f"{item['name']}: {item.get('backend')} {item.get('status')} [{profiles}] ({item.get('backend_id')})")
         return
 
-    if args.action == "start":
-        if not args.targets:
-            raise SystemExit("workspace start requires at least one profile, alias, strategy, or recipe.")
+    if args.action == "targets":
+        action = args.targets_action or "show"
+        current = configured_workspace_targets(state)
+        if action == "show":
+            payload = {"targets": current, "suggested": suggested_workspace_targets(state)}
+            if args.json:
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+            elif current:
+                print("Workspace targets: " + " ".join(current))
+            else:
+                print("Workspace targets are not configured.")
+                print("Suggested: " + " ".join(payload["suggested"]))
+            return
+        if action == "set":
+            targets = dedupe_preserve_order(split_workspace_targets(args.targets))
+            if not targets:
+                raise SystemExit("workspace targets set requires at least one profile, alias, strategy, or recipe.")
+            state["workspace_targets"] = targets
+            save_state(state)
+            print("Workspace targets: " + " ".join(targets))
+            return
+        if action == "add":
+            targets = dedupe_preserve_order(current + split_workspace_targets(args.targets))
+            if targets == current:
+                print("Workspace targets unchanged: " + " ".join(current))
+                return
+            state["workspace_targets"] = targets
+            save_state(state)
+            print("Workspace targets: " + " ".join(targets))
+            return
+        if action == "remove":
+            remove = set(split_workspace_targets(args.targets))
+            if not remove:
+                raise SystemExit("workspace targets remove requires at least one target.")
+            targets = [target for target in current if target not in remove]
+            state["workspace_targets"] = targets
+            save_state(state)
+            print("Workspace targets: " + (" ".join(targets) if targets else "(empty)"))
+            return
+        if action == "reset":
+            state["workspace_targets"] = []
+            save_state(state)
+            print("Workspace targets reset. Future starts will use suggested targets.")
+            return
+        raise SystemExit(f"Unknown workspace targets action {action!r}")
+
+    if args.action in {"start", "up"}:
         cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path.cwd().resolve()
+        workspace_state, _ = effective_state(cwd)
+        targets, target_source = workspace_targets_for_start(workspace_state, args.targets)
         backend = resolve_workspace_backend(args.backend)
         workspace_name = session_safe_name(args.name or "default")
         workspace_id = workspace_backend_id(workspace_name)
         extra_args = list(args.arg or [])
-        shell = "powershell" if backend == "wt" or os.name == "nt" else "bash"
-        entries: list[dict[str, Any]] = []
-        used_names: set[str] = set()
-
-        for target in args.targets:
-            _, profile_name, profile, _ = resolve_profile_for_session(target, cwd)
-            session_name = unique_workspace_session_name(profile_name, used_names)
-            script = profile_launch_script(profile, shell, extra_args, cwd)
-            entries.append({
-                "target": target,
-                "profile": profile_name,
-                "session_name": session_name,
-                "title": f"ai:{session_name}",
-                "cwd": str(cwd),
-                "command": profile.get("command"),
-                "model": profile.get("model"),
-                "script": script,
-                "launch_command": profile_launch_command(profile, shell, extra_args, cwd),
-            })
+        attach = bool(args.attach or (args.action == "up" and backend == "tmux" and not getattr(args, "no_attach", False)))
+        reuse = bool(args.reuse or args.action == "up")
+        entries = build_workspace_entries(targets, backend, cwd, extra_args)
+        if target_source != "requested":
+            print(f"Using {target_source} workspace targets: {' '.join(targets)}")
 
         if backend == "tmux":
-            detail = start_tmux_workspace(workspace_id, entries, args.attach, args.reuse)
+            detail = start_tmux_workspace(workspace_id, entries, attach, reuse)
         elif backend == "wt":
             detail = start_windows_terminal_workspace(entries)
         elif backend == "print":
@@ -2958,10 +3100,54 @@ def cmd_workspace(args: argparse.Namespace) -> None:
         }
         save_state(state)
         print(f"Workspace {workspace_name}: {detail}")
+        print_workspace_shortcuts(backend)
+        return
+
+    if args.action == "add":
+        if not args.targets:
+            raise SystemExit("workspace add requires at least one profile, alias, strategy, or recipe.")
+        workspace_name, record = workspace_record_for_target(state, args.name or "default")
+        if not record:
+            raise SystemExit(f"Unknown workspace {args.name or 'default'!r}. Use ai-workspace up or ai-workspace start first.")
+        backend = str(record.get("backend", "print"))
+        cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path(str(record.get("cwd") or Path.cwd())).expanduser().resolve()
+        targets = dedupe_preserve_order(split_workspace_targets(args.targets))
+        entries = build_workspace_entries(targets, backend, cwd, list(args.arg or []), record)
         if backend == "tmux":
-            print("tmux shortcuts: Ctrl-b w chooses an agent window; Ctrl-b n/p moves next/previous; Ctrl-b d detaches.")
+            backend_id = str(record.get("backend_id", ""))
+            if not tmux_has_session(backend_id):
+                raise SystemExit(f"tmux workspace {backend_id!r} is not running.")
+            for entry in entries:
+                entry["tmux_target"] = tmux_new_window([
+                    "new-window",
+                    "-P",
+                    "-F",
+                    "#{window_id}",
+                    "-t",
+                    backend_id,
+                    "-n",
+                    str(entry["session_name"]),
+                    str(entry["script"]),
+                ]) or f"{backend_id}:{entry['session_name']}"
+            if args.attach and entries:
+                subprocess.run(["tmux", "select-window", "-t", str(entries[0]["tmux_target"])], check=True)
+                tmux_attach_or_switch(backend_id)
+            detail = f"tmux:{backend_id} (+{len(entries)} windows)"
         elif backend == "wt":
-            print("Windows Terminal shortcuts: Ctrl+Tab switches tabs; Alt+number jumps to a tab.")
+            detail = start_windows_terminal_workspace(entries)
+        elif backend == "print":
+            for entry in entries:
+                print(f"# {entry['session_name']} ({entry['profile']})")
+                print(entry["launch_command"])
+            detail = "printed launch commands"
+        else:
+            raise SystemExit(f"Unknown workspace backend {backend!r}")
+        record.setdefault("entries", []).extend(workspace_record_entries(entries))
+        record["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        workspaces[workspace_name] = record
+        save_state(state)
+        print(f"Workspace {workspace_name}: {detail}")
+        print_workspace_shortcuts(backend)
         return
 
     if args.action in {"attach", "switch"}:
@@ -2983,6 +3169,21 @@ def cmd_workspace(args: argparse.Namespace) -> None:
                 raise SystemExit(f"Workspace {workspace_name!r} has no entry matching {args.target!r}.")
             tmux_target = str(entry.get("tmux_target") or f"{backend_id}:{entry.get('session_name')}")
             subprocess.run(["tmux", "select-window", "-t", tmux_target], check=True)
+        tmux_attach_or_switch(backend_id)
+        return
+
+    if args.action in {"next", "prev"}:
+        workspace_name, record = workspace_record_for_target(state, args.name or "default")
+        if not record:
+            raise SystemExit(f"Unknown workspace {args.name or 'default'!r}. Use ai-workspace list or ai-workspace start.")
+        if record.get("backend") != "tmux":
+            print(f"Workspace {workspace_name} uses {record.get('backend')}; next/prev switching is only available for tmux.")
+            return
+        backend_id = str(record.get("backend_id", ""))
+        if not tmux_has_session(backend_id):
+            raise SystemExit(f"tmux workspace {backend_id!r} is not running.")
+        command = "next-window" if args.action == "next" else "previous-window"
+        subprocess.run(["tmux", command, "-t", backend_id], check=True)
         tmux_attach_or_switch(backend_id)
         return
 
@@ -4173,7 +4374,7 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_list_parser.add_argument("--json", action="store_true")
     workspace_list_parser.set_defaults(func=cmd_workspace)
     workspace_start_parser = workspace_sub.add_parser("start", help="Start several profiles in one terminal workspace.")
-    workspace_start_parser.add_argument("targets", nargs="+", help="Profiles, aliases, strategies, or recipes to open.")
+    workspace_start_parser.add_argument("targets", nargs="*", help="Profiles, aliases, strategies, or recipes to open. Defaults to configured or suggested targets.")
     workspace_start_parser.add_argument("--backend", choices=["auto", "tmux", "wt", "print"], default="auto")
     workspace_start_parser.add_argument("--name", help="Workspace name. Defaults to 'default'.")
     workspace_start_parser.add_argument("--cwd", help="Working directory for every launched agent.")
@@ -4181,6 +4382,27 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_start_parser.add_argument("--reuse", action="store_true", help="Reuse an existing tmux workspace with the same name.")
     workspace_start_parser.add_argument("--arg", action="append", default=[], help="Extra argument passed to every launched CLI. Repeat as needed; use --arg=--flag for option-like values.")
     workspace_start_parser.set_defaults(func=cmd_workspace)
+    workspace_up_parser = workspace_sub.add_parser("up", help="Start or attach the default workspace with minimal typing.")
+    workspace_up_parser.add_argument("targets", nargs="*", help="Optional profiles, aliases, strategies, or recipes. Defaults to configured or suggested targets.")
+    workspace_up_parser.add_argument("--backend", choices=["auto", "tmux", "wt", "print"], default="auto")
+    workspace_up_parser.add_argument("--name", help="Workspace name. Defaults to 'default'.")
+    workspace_up_parser.add_argument("--cwd", help="Working directory for every launched agent.")
+    workspace_up_parser.add_argument("--no-attach", action="store_true", help="Do not auto-attach when the resolved backend is tmux.")
+    workspace_up_parser.add_argument("--reuse", action="store_true", help="Reuse an existing tmux workspace with the same name.")
+    workspace_up_parser.add_argument("--arg", action="append", default=[], help="Extra argument passed to every launched CLI. Repeat as needed; use --arg=--flag for option-like values.")
+    workspace_up_parser.set_defaults(func=cmd_workspace, attach=False)
+    workspace_targets_parser = workspace_sub.add_parser("targets", help="Show or configure default workspace targets.")
+    workspace_targets_parser.add_argument("targets_action", nargs="?", choices=["show", "set", "add", "remove", "reset"], default="show")
+    workspace_targets_parser.add_argument("targets", nargs="*", help="Profiles, aliases, strategies, or recipes. Comma-separated values are accepted.")
+    workspace_targets_parser.add_argument("--json", action="store_true")
+    workspace_targets_parser.set_defaults(func=cmd_workspace)
+    workspace_add_parser = workspace_sub.add_parser("add", help="Add one or more agents to an existing workspace.")
+    workspace_add_parser.add_argument("targets", nargs="+", help="Profiles, aliases, strategies, or recipes to add.")
+    workspace_add_parser.add_argument("--name", help="Workspace name. Defaults to 'default'.")
+    workspace_add_parser.add_argument("--cwd", help="Working directory for the added agents.")
+    workspace_add_parser.add_argument("--attach", action="store_true", help="Switch to the first added tmux window after adding.")
+    workspace_add_parser.add_argument("--arg", action="append", default=[], help="Extra argument passed to every added CLI. Repeat as needed; use --arg=--flag for option-like values.")
+    workspace_add_parser.set_defaults(func=cmd_workspace)
     workspace_attach_parser = workspace_sub.add_parser("attach", help="Attach or switch to a tmux workspace.")
     workspace_attach_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
     workspace_attach_parser.set_defaults(func=cmd_workspace, target=None)
@@ -4192,6 +4414,10 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_focus_parser.add_argument("target", help="Profile, alias, recipe, strategy, or session name in the workspace.")
     workspace_focus_parser.add_argument("--name", help="Workspace name. Defaults to 'default'.")
     workspace_focus_parser.set_defaults(func=cmd_workspace, action="switch")
+    for action_name, help_text in [("next", "Switch to the next tmux workspace window."), ("prev", "Switch to the previous tmux workspace window.")]:
+        workspace_step_parser = workspace_sub.add_parser(action_name, help=help_text)
+        workspace_step_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
+        workspace_step_parser.set_defaults(func=cmd_workspace)
     workspace_stop_parser = workspace_sub.add_parser("stop", help="Stop or forget a managed workspace.")
     workspace_stop_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
     workspace_stop_parser.set_defaults(func=cmd_workspace)

@@ -77,8 +77,13 @@ Use `ai-workspace` when you want one terminal interface for several agents.
 On Linux, macOS, or WSL with tmux, this is the closest experience to "switch Claude/Codex without leaving the terminal":
 
 ```bash
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up
 ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
+ai-workspace next
+ai-workspace prev
+ai-workspace add gemini
 ai-workspace switch codex
 ai-workspace list
 ai-workspace stop
@@ -89,6 +94,8 @@ Inside tmux, use `Ctrl-b w` to choose an agent window, `Ctrl-b n/p` to move next
 On Windows, use Windows Terminal tabs from one command:
 
 ```powershell
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up --backend wt
 ai-workspace start codex claude opencode-openrouter --backend wt
 ```
 
@@ -142,8 +149,11 @@ ai-use claude
 ai-use opencode-openrouter
 ai-use local-private
 
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up
 ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
+ai-workspace add gemini
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
 

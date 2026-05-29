@@ -75,8 +75,13 @@ ai-recipe install claude-native gemini-cli opencode-deepseek --active claude
 Linux、macOS 或 WSL 上有 tmux 時，這是最接近「Codex 不中斷、直接切到 Claude」的體驗：
 
 ```bash
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up
 ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
+ai-workspace next
+ai-workspace prev
+ai-workspace add gemini
 ai-workspace switch codex
 ai-workspace list
 ai-workspace stop
@@ -87,6 +92,8 @@ ai-workspace stop
 Windows 上可以用 Windows Terminal 一次開啟多個 tab：
 
 ```powershell
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up --backend wt
 ai-workspace start codex claude opencode-openrouter --backend wt
 ```
 
@@ -140,8 +147,11 @@ ai-use claude
 ai-use opencode-openrouter
 ai-use local-private
 
+ai-workspace targets set codex claude opencode-openrouter
+ai-workspace up
 ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
+ai-workspace add gemini
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
 
