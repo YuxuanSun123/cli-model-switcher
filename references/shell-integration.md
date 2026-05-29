@@ -62,6 +62,14 @@ function ai-adapter {
   py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" adapter @args
 }
 
+function ai-session {
+  py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" session @args
+}
+
+function ai-handoff {
+  py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" handoff @args
+}
+
 function ai-select {
   py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" select
   Invoke-Expression (py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" current --shell powershell)
@@ -113,6 +121,9 @@ ai-recipe list
 ai-recipe install opencode-openrouter --use
 ai-use code-fast
 ai-adapter opencode opencode-openrouter
+ai-session start claude --backend wt
+ai-session list
+ai-handoff claude "Review the current Codex work and look for regressions."
 ai-current
 ai-paths
 ai-list
@@ -160,6 +171,9 @@ ai-recipe list
 ai-recipe install opencode-openrouter --use
 ai-use code-fast
 ai-adapter opencode opencode-openrouter
+ai-session start claude --backend print
+ai-session list
+ai-handoff claude "Review the current Codex work." --no-start
 ai-memory tags
 ai-page list
 ai-page open claude home
@@ -216,6 +230,14 @@ ai-recipe() {
 
 ai-adapter() {
   python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" adapter "$@"
+}
+
+ai-session() {
+  python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" session "$@"
+}
+
+ai-handoff() {
+  python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" handoff "$@"
 }
 
 ai-memory() {

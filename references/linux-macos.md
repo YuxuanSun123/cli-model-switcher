@@ -63,6 +63,9 @@ ai-strategy install
 ai-recipe list
 ai-recipe install opencode-openrouter --use
 ai-use code-fast
+ai-session start claude --backend tmux
+ai-session switch claude
+ai-handoff claude "Review the current Codex work and look for regressions."
 ai-use local-private
 ai-adapter opencode opencode-openrouter
 ai-use claude
@@ -122,6 +125,8 @@ Project-local files:
 - For private gateways and local proxies, start from `custom-openai`: `ai-profile gateway --command opencode --api custom-openai --base-url https://gateway.example/v1 --api-key-env GATEWAY_API_KEY --use`.
 - For guided setup, use `setup --wizard`; for scripts and fresh machines, add `--yes --recipes ... --active ...`.
 - Use strategy aliases for task switching after `setup --full` or `ai-strategy install`: `ai-use code-fast`, `ai-use code-best`, `ai-use local-private`, and `ai-use cheap-long-context`.
+- Use tmux for same-terminal multi-agent work: `ai-session start codex --backend tmux --attach`, `ai-session start claude --backend tmux`, `ai-session switch claude`, and `ai-session stop claude`.
+- Use `ai-handoff PROFILE "note"` to write a tagged handoff note to shared memory before opening another agent session.
 - Use tagged memory to keep context tidy: `ai-remember --tag api-note "..."`, `ai-recall --tag api-note`, `ai-memory dedupe`, and `ai-memory compact --keep 50`.
 - Use `ai-doctor --fix` after upgrades to refresh stale managed wrappers and repair local state issues.
 - Use `ai-secret audit --scope all --fail` before portable export or before sharing state/memory files.

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 This project currently follows a lightweight release format while it is still a personal Codex skill and local workflow tool.
 
+## [Unreleased]
+
+### Added
+
+- `session` command for starting, listing, switching, attaching, and stopping managed AI CLI sessions.
+- `handoff` command for writing shared-memory handoff notes and opening a target agent session.
+- Session backends for tmux, Windows Terminal, PowerShell windows, and printable fallback launch commands.
+- `ai-session` and `ai-handoff` shell helpers for PowerShell, cmd.exe, Bash/Zsh, and fish.
+- README documentation for multi-agent terminal workflows.
+
 ## [0.1.0] - 2026-05-29
 
 ### Added
