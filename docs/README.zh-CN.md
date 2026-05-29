@@ -1,40 +1,40 @@
 # CLI Model Switcher
 
-**Language:** English | [简体中文](docs/README.zh-CN.md) | [繁體中文](docs/README.zh-TW.md)
+**语言：** [English](../README.md) | 简体中文 | [繁體中文](README.zh-TW.md)
 
-A local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
+CLI Model Switcher 是一个本地命令行 AI 配置切换器。它可以在 Codex、Claude Code、OpenCode、Gemini CLI、本地模型和 OpenAI 兼容网关之间快速切换，同时共享同一套跨工具记忆。
 
-## What It Does
+## 功能亮点
 
-- Switch active CLI AI profiles with `ai-use`.
-- Install one-step recipes for common stacks such as OpenCode + OpenRouter, Claude Code, Gemini CLI, DeepSeek, Ollama, and LM Studio.
-- Share memory across agents through a neutral `AI_CLI_MEMORY` context file.
-- Manage API presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, Groq, Mistral, xAI, Together, Fireworks, DashScope, Moonshot, Zhipu, SiliconFlow, Volcengine, Cerebras, Perplexity, Novita, Azure OpenAI, and custom OpenAI-compatible endpoints.
-- Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
-- Audit state and memory for direct-looking secrets before export or migration.
-- Export/import portable profile state between machines.
+- 使用 `ai-use` 切换当前 CLI AI 配置。
+- 使用一键配方安装常用组合，例如 OpenCode + OpenRouter、Claude Code、Gemini CLI、DeepSeek、Ollama 和 LM Studio。
+- 通过中立的 `AI_CLI_MEMORY` 上下文文件在不同 agent 之间共享记忆。
+- 管理多种 API 预设，包括 OpenAI、Anthropic、Gemini、OpenRouter、DeepSeek、Ollama、LM Studio、Groq、Mistral、xAI、Together、Fireworks、DashScope、Moonshot、Zhipu、SiliconFlow、Volcengine、Cerebras、Perplexity、Novita、Azure OpenAI 和自定义 OpenAI 兼容端点。
+- 为 PowerShell、cmd.exe、Bash、Zsh、fish 和 Nushell 生成快捷命令。
+- 在导出或迁移前扫描状态和记忆中的疑似密钥。
+- 支持跨机器 portable 导出和导入。
 
-## Quick Start
+## 快速开始
 
-From the repository root:
+在仓库根目录运行：
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard
 ```
 
-Non-interactive Windows setup:
+Windows 非交互安装：
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard --yes --recipes opencode-openrouter,local-ollama --active opencode-openrouter
 ```
 
-Linux or macOS:
+Linux 或 macOS：
 
 ```bash
 python3 scripts/cli_model_switcher.py setup --wizard
 ```
 
-After setup, reload your shell profile if the installer asks you to. Then:
+安装后按提示重新加载 shell 配置，然后运行：
 
 ```powershell
 ai-list
@@ -43,9 +43,9 @@ ai-status
 ai-recall
 ```
 
-## Recipes
+## 配方
 
-Recipes create useful profiles without long command lines:
+配方可以免去手写长命令：
 
 ```powershell
 ai-recipe list
@@ -54,7 +54,7 @@ ai-recipe install opencode-openrouter --use
 ai-recipe install claude-native gemini-cli opencode-deepseek --active claude
 ```
 
-Built-in recipes:
+内置配方：
 
 - `codex-openai`
 - `claude-native`
@@ -66,7 +66,7 @@ Built-in recipes:
 - `local-lmstudio`
 - `custom-gateway`
 
-## Common Commands
+## 常用命令
 
 ```powershell
 ai-use codex
@@ -85,9 +85,9 @@ ai-doctor --fix
 ai-secret audit --scope all --fail
 ```
 
-## Shell Helpers
+## Shell 快捷命令
 
-The setup command can install helpers automatically. Manual installers are also available:
+`setup` 可以自动安装快捷命令，也可以手动安装：
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py install-powershell --profile $PROFILE
@@ -99,7 +99,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell auto
 python3 scripts/cli_model_switcher.py install-unix --shell fish
 ```
 
-Generated helpers include:
+常见快捷命令包括：
 
 - `ai-use`
 - `ai-current`
@@ -117,9 +117,9 @@ Generated helpers include:
 - `ai-memory`
 - `ai-run`
 
-## Shared Memory
+## 共享记忆
 
-Default global files:
+默认全局文件：
 
 ```text
 ~/.ai-cli-switcher/state.json
@@ -128,61 +128,61 @@ Default global files:
 ~/.ai-cli-switcher/memory/context.md
 ```
 
-Project-local files:
+项目本地文件：
 
 ```text
 .ai-cli-switcher.json
 .ai-cli-memory.md
 ```
 
-The active profile exposes the combined memory file through `AI_CLI_MEMORY`.
+当前配置会通过 `AI_CLI_MEMORY` 暴露合并后的上下文文件。
 
-## Secrets
+## 密钥安全
 
-Do not store API keys directly in profiles. Store environment references instead:
+不要把 API key 直接写进 profile。请存环境变量引用：
 
 ```powershell
 ai-profile router --command opencode --api openrouter --api-key-env OPENROUTER_API_KEY --use
 ```
 
-Before sharing state or migrating machines:
+分享状态或迁移机器前运行：
 
 ```powershell
 ai-secret audit --scope all --fail
 py -3.12 scripts\cli_model_switcher.py export --portable --output ai-cli-switcher-portable.json
 ```
 
-## Portable Migration
+## Portable 迁移
 
-Export:
+导出：
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py export --portable --output ai-cli-switcher-portable.json
 ```
 
-Import on another machine:
+在另一台机器导入：
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py import ai-cli-switcher-portable.json --merge-policy rename --active
 ```
 
-Merge policies:
+合并策略：
 
-- `overwrite`: replace conflicting imported names.
-- `keep`: keep existing local names.
-- `rename`: preserve both sides by importing conflicts with an `-imported` suffix.
+- `overwrite`：覆盖冲突项。
+- `keep`：保留本地已有项。
+- `rename`：两边都保留，冲突导入项会加 `-imported` 后缀。
 
-## Repository Layout
+## 仓库结构
 
 ```text
-SKILL.md                         Codex skill instructions
-scripts/cli_model_switcher.py    Main CLI implementation
-references/shell-integration.md  PowerShell, cmd.exe, Bash, Zsh, fish, Nushell notes
-references/linux-macos.md        Linux, macOS, WSL, and Git Bash notes
-agents/openai.yaml               Skill UI metadata
+SKILL.md                         Codex skill 指令
+scripts/cli_model_switcher.py    主 CLI 实现
+references/shell-integration.md  PowerShell、cmd.exe、Bash、Zsh、fish、Nushell 说明
+references/linux-macos.md        Linux、macOS、WSL 和 Git Bash 说明
+agents/openai.yaml               Skill UI 元数据
 ```
 
-## Development Checks
+## 开发校验
 
 ```powershell
 py -3.12 -m py_compile scripts\cli_model_switcher.py
@@ -190,6 +190,6 @@ py -3.12 scripts\cli_model_switcher.py secret audit --scope all --fail
 py -3.12 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" .
 ```
 
-## Status
+## 状态
 
-This is a personal Codex skill and standalone helper script. The repository is currently private and optimized for local workflow automation.
+这是一个个人 Codex skill 和独立辅助脚本。当前仓库为 private，主要面向本地工作流自动化。
