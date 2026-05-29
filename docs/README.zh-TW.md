@@ -1,6 +1,6 @@
 # CLI Model Switcher
 
-**語言：** [English](../README.md) | [簡體中文](README.zh-CN.md) | 繁體中文
+**語言：** [English](../README.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | [簡體中文](README.zh-CN.md) | 繁體中文
 
 CLI Model Switcher 是一個本機命令列 AI 設定切換器。它可以在 Codex、Claude Code、OpenCode、Gemini CLI、本機模型和 OpenAI 相容閘道之間快速切換，同時共用同一套跨工具記憶。
 
@@ -335,6 +335,7 @@ py -3.12 scripts\cli_model_switcher.py import ai-cli-switcher-portable.json --me
 ```text
 SKILL.md                         Codex skill 指令
 scripts/cli_model_switcher.py    主 CLI 實作
+docs/README.*.md                 本地化 README 頁面
 references/shell-integration.md  PowerShell、cmd.exe、Bash、Zsh、fish、Nushell 說明
 references/linux-macos.md        Linux、macOS、WSL 和 Git Bash 說明
 agents/openai.yaml               Skill UI 中繼資料

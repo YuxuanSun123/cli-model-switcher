@@ -17,10 +17,23 @@ REQUIRED_FILES = [
     "README.md",
     "CHANGELOG.md",
     "scripts/cli_model_switcher.py",
+    "docs/README.de.md",
+    "docs/README.fr.md",
+    "docs/README.it.md",
+    "docs/README.ja.md",
     "docs/README.zh-CN.md",
     "docs/README.zh-TW.md",
     "references/linux-macos.md",
     "references/shell-integration.md",
+]
+
+LOCALIZED_READMES = [
+    "docs/README.de.md",
+    "docs/README.fr.md",
+    "docs/README.it.md",
+    "docs/README.ja.md",
+    "docs/README.zh-CN.md",
+    "docs/README.zh-TW.md",
 ]
 
 
@@ -67,9 +80,27 @@ def main() -> int:
         fail("SKILL.md description should explain the command-line AI agent scope")
 
     readme = (root / "README.md").read_text(encoding="utf-8")
-    for expected in ["install.sh", "install.ps1", "ai-workspace", "ai-agent", "install-bin"]:
+    for expected in [
+        "install.sh",
+        "install.ps1",
+        "ai-workspace",
+        "ai-agent",
+        "install-bin",
+        "README.de.md",
+        "README.fr.md",
+        "README.it.md",
+        "README.ja.md",
+    ]:
         if expected not in readme:
             fail(f"README.md is missing expected topic: {expected}")
+
+    for relative in LOCALIZED_READMES:
+        localized = (root / relative).read_text(encoding="utf-8")
+        for expected in ["English", "Deutsch", "Français", "Italiano", "日本語", "繁體中文"]:
+            if expected not in localized:
+                fail(f"{relative} is missing language navigation entry: {expected}")
+        if "简体中文" not in localized and "簡體中文" not in localized:
+            fail(f"{relative} is missing Simplified Chinese language navigation")
 
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
     for command in ["install-unix", "install-bin", "workspace", "agent", "secret"]:

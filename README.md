@@ -1,6 +1,6 @@
 # CLI Model Switcher
 
-**Language:** English | [Simplified Chinese](docs/README.zh-CN.md) | [Traditional Chinese](docs/README.zh-TW.md)
+**Language:** English | [Deutsch](docs/README.de.md) | [Français](docs/README.fr.md) | [Italiano](docs/README.it.md) | [日本語](docs/README.ja.md) | [Simplified Chinese](docs/README.zh-CN.md) | [Traditional Chinese](docs/README.zh-TW.md)
 
 **Project Links:** [Changelog](CHANGELOG.md) | [Releases](https://github.com/YuxuanSun123/cli-model-switcher/releases)
 
@@ -339,6 +339,7 @@ Merge policies:
 ```text
 SKILL.md                         Codex skill instructions
 scripts/cli_model_switcher.py    Main CLI implementation
+docs/README.*.md                 Localized README pages
 references/shell-integration.md  PowerShell, cmd.exe, Bash, Zsh, fish, Nushell notes
 references/linux-macos.md        Linux, macOS, WSL, and Git Bash notes
 agents/openai.yaml               Skill UI metadata

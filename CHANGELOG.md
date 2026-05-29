@@ -6,7 +6,9 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- German, Japanese, French, and Italian README pages, plus expanded language navigation.
 
 ## [0.3.0] - 2026-05-29
 
