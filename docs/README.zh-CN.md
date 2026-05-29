@@ -107,6 +107,25 @@ ai-workspace start codex claude opencode-openrouter --backend wt
 ai-workspace start codex claude --backend print
 ```
 
+## Agent 内切换
+
+进入 Codex、Claude 或 OpenCode 以后，输入会被当前 agent 接管。安装 agent bridge 后，这些 agent 会知道 `/switch claude` 是终端切换指令，而不是普通聊天：
+
+```powershell
+ai-agent install codex claude opencode
+ai-agent prompt
+```
+
+在每个项目里运行 `ai-agent install`，后续新 agent 会读取 `AGENTS.md` 和 `CLAUDE.md`。已经打开的 agent 需要把 `ai-agent prompt` 的输出粘贴进去一次，然后就可以说：
+
+```text
+/switch claude
+switch codex
+next
+choose
+handoff claude review the current changes
+```
+
 ## 会话和交接
 
 会话功能可以让多个 AI CLI 同时开着，并共享同一套 switcher 状态和记忆。
@@ -158,6 +177,8 @@ ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
 ai-wgo claude
 ai-workspace add gemini
+ai-agent install codex claude opencode
+ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
 
@@ -197,6 +218,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-agent`
 - `ai-session`
 - `ai-workspace`
 - `ai-ws`、`ai-wup`、`ai-wgo`、`ai-wpick`

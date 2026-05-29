@@ -11,6 +11,7 @@ This project currently follows a lightweight release format while it is still a 
 - `workspace` command and `ai-workspace` shell helper for opening several agents in one terminal workspace and switching between them with tmux or Windows Terminal tabs.
 - `workspace up`, `workspace targets`, `workspace add`, `workspace next`, and `workspace prev` to reduce repeated typing in same-terminal multi-agent workflows.
 - Project-local workspace targets, detailed `workspace show/status`, interactive `workspace choose`, and short shell helpers `ai-ws`, `ai-wup`, `ai-wgo`, and `ai-wpick`.
+- `agent` command and `ai-agent` helper for installing Codex/Claude/OpenCode instruction bridges, so agent-side requests like `/switch claude` can run `ai-workspace switch claude`.
 
 ### Fixed
 

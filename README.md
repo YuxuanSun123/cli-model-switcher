@@ -109,6 +109,25 @@ If no terminal workspace backend is available, print the exact launch commands:
 ai-workspace start codex claude --backend print
 ```
 
+## Agent-Inside Switching
+
+Once you are inside Codex, Claude, or OpenCode, your input belongs to that agent. Install the agent bridge so those agents know that `/switch claude` should run the terminal switch command instead of answering in chat:
+
+```powershell
+ai-agent install codex claude opencode
+ai-agent prompt
+```
+
+Use `ai-agent install` in each project so future agent sessions read `AGENTS.md` and `CLAUDE.md`. For an already-running agent, paste the output of `ai-agent prompt` once, then say:
+
+```text
+/switch claude
+switch codex
+next
+choose
+handoff claude review the current changes
+```
+
 ## Sessions and Handoffs
 
 Sessions let you keep multiple AI CLIs open while they share the same switcher state and memory.
@@ -160,6 +179,8 @@ ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
 ai-wgo claude
 ai-workspace add gemini
+ai-agent install codex claude opencode
+ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
 
@@ -199,6 +220,7 @@ Generated helpers include:
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-agent`
 - `ai-session`
 - `ai-workspace`
 - `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`

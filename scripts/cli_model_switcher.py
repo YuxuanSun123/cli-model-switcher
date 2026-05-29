@@ -30,6 +30,14 @@ PROJECT_MEMORY_NAME = ".ai-cli-memory.md"
 SCRIPT_PATH = Path(__file__).resolve()
 WORKSPACE_FALLBACK_TARGETS = ["codex", "claude", "opencode"]
 WORKSPACE_TARGET_PRIORITY = ["codex", "claude", "opencode-openrouter", "opencode", "gemini", "local-ollama", "local-lmstudio"]
+AGENT_BRIDGE_MARKER_START = "<!-- >>> ai-cli-switcher agent-bridge >>> -->"
+AGENT_BRIDGE_MARKER_END = "<!-- <<< ai-cli-switcher agent-bridge <<< -->"
+AGENT_BRIDGE_TARGET_FILES: dict[str, list[str]] = {
+    "codex": ["AGENTS.md"],
+    "claude": ["CLAUDE.md"],
+    "opencode": ["AGENTS.md"],
+    "gemini": ["GEMINI.md"],
+}
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("OpenAI key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")),
@@ -1278,6 +1286,7 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
         "function ai-strategy",
         "function ai-recipe",
         "function ai-adapter",
+        "function ai-agent",
         "function ai-session",
         "function ai-workspace",
         "function ai-ws",
@@ -1309,6 +1318,7 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
             "ai-strategy.cmd",
             "ai-recipe.cmd",
             "ai-adapter.cmd",
+            "ai-agent.cmd",
             "ai-session.cmd",
             "ai-workspace.cmd",
             "ai-ws.cmd",
@@ -2287,6 +2297,148 @@ def cmd_api(args: argparse.Namespace) -> None:
     print(f"{action} {profile_summary(args.profile, profile)} with API preset {preset_name}{suffix}")
     if args.alias:
         print(f"Alias saved: {args.alias} -> {args.profile}")
+
+
+def agent_bridge_targets(values: list[str] | None, all_targets: bool = False) -> list[str]:
+    if all_targets or not values:
+        return list(AGENT_BRIDGE_TARGET_FILES)
+    targets: list[str] = []
+    for value in values:
+        for item in re.split(r"[, ]+", str(value).strip()):
+            if not item:
+                continue
+            if item == "all":
+                return list(AGENT_BRIDGE_TARGET_FILES)
+            if item not in AGENT_BRIDGE_TARGET_FILES:
+                available = ", ".join(sorted(AGENT_BRIDGE_TARGET_FILES))
+                raise SystemExit(f"Unknown agent bridge target {item!r}. Available: {available}, all")
+            targets.append(item)
+    return dedupe_preserve_order(targets)
+
+
+def agent_bridge_files(targets: list[str], root: Path) -> list[Path]:
+    files: list[Path] = []
+    for target in targets:
+        for name in AGENT_BRIDGE_TARGET_FILES[target]:
+            path = root / name
+            if path not in files:
+                files.append(path)
+    return files
+
+
+def agent_bridge_commands() -> list[tuple[str, str]]:
+    return [
+        ("switch TARGET", "Run `ai-workspace switch TARGET` or `ai-wgo TARGET`."),
+        ("go TARGET", "Run `ai-workspace switch TARGET` or `ai-wgo TARGET`."),
+        ("pick / choose", "Run `ai-workspace choose` or `ai-wpick`."),
+        ("next / prev", "Run `ai-workspace next` or `ai-workspace prev`."),
+        ("add TARGET", "Run `ai-workspace add TARGET`."),
+        ("workspace / status", "Run `ai-workspace show`."),
+        ("handoff TARGET NOTE", "Run `ai-handoff TARGET \"NOTE\"`."),
+    ]
+
+
+def agent_bridge_text(mode: str = "full") -> str:
+    command_lines = "\n".join(f"- `{name}`: {action}" for name, action in agent_bridge_commands())
+    script = str(SCRIPT_PATH)
+    fallback_windows = f'py -3.12 "{script}" workspace switch TARGET'
+    fallback_unix = f'python3 "{script}" workspace switch TARGET'
+    compact = mode == "prompt"
+    heading = "AI CLI Switcher Agent Bridge" if not compact else "Agent switching rule"
+    lines = [
+        f"## {heading}",
+        "",
+    ]
+    if compact:
+        lines.extend([
+            "Paste this into the active Codex/Claude/OpenCode session to teach it the switch convention for the current conversation.",
+            "",
+        ])
+    lines.extend([
+        "When the user asks to switch agents, treat it as an operational terminal command, not as a normal chat request.",
+        "",
+        "Recognize requests such as `/switch claude`, `switch claude`, `go codex`, `next`, `prev`, `choose`, and `handoff claude <note>`.",
+        "",
+        command_lines,
+        "",
+        "Execute the command immediately with your shell/terminal tool when available. Do not edit repository files for a switch request unless the user explicitly asks for code changes.",
+        "If helper commands are not on PATH, use a direct fallback such as:",
+        f"- Windows PowerShell: `{fallback_windows}`",
+        f"- Linux/macOS/WSL: `{fallback_unix}`",
+        "",
+        "After running a switch command, keep the reply short. If shell execution is unavailable, print the exact command the user should run.",
+    ])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def upsert_marked_block(path: Path, block: str, dry_run: bool) -> str:
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    marked = f"{AGENT_BRIDGE_MARKER_START}\n{block.rstrip()}\n{AGENT_BRIDGE_MARKER_END}\n"
+    if AGENT_BRIDGE_MARKER_START in existing and AGENT_BRIDGE_MARKER_END in existing:
+        before, rest = existing.split(AGENT_BRIDGE_MARKER_START, 1)
+        _, after = rest.split(AGENT_BRIDGE_MARKER_END, 1)
+        updated = before.rstrip() + "\n\n" + marked + after.lstrip()
+        action = "updated"
+    else:
+        updated = existing.rstrip() + ("\n\n" if existing.strip() else "") + marked
+        action = "created" if not existing else "added"
+    if dry_run:
+        print(f"--- {path} ({action}) ---")
+        print(marked.rstrip())
+        return action
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(updated, encoding="utf-8")
+    return action
+
+
+def remove_marked_block(path: Path, dry_run: bool) -> str:
+    if not path.exists():
+        return "missing"
+    existing = path.read_text(encoding="utf-8")
+    if AGENT_BRIDGE_MARKER_START not in existing or AGENT_BRIDGE_MARKER_END not in existing:
+        return "unchanged"
+    before, rest = existing.split(AGENT_BRIDGE_MARKER_START, 1)
+    removed, after = rest.split(AGENT_BRIDGE_MARKER_END, 1)
+    updated = (before.rstrip() + "\n\n" + after.lstrip()).rstrip() + "\n"
+    if dry_run:
+        print(f"--- {path} (remove) ---")
+        print(f"{AGENT_BRIDGE_MARKER_START}{removed}{AGENT_BRIDGE_MARKER_END}".rstrip())
+        return "removed"
+    path.write_text(updated, encoding="utf-8")
+    return "removed"
+
+
+def cmd_agent(args: argparse.Namespace) -> None:
+    root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
+    targets = agent_bridge_targets(getattr(args, "targets", []), getattr(args, "all", False))
+
+    if args.action in {"prompt", "instructions"}:
+        print(agent_bridge_text("prompt" if args.action == "prompt" else "full").rstrip())
+        return
+
+    files = agent_bridge_files(targets, root)
+    if args.action == "paths":
+        for path in files:
+            print(path)
+        return
+
+    if args.action == "install":
+        block = agent_bridge_text("full")
+        for path in files:
+            action = upsert_marked_block(path, block, args.dry_run)
+            print(f"{action}: {path}")
+        if not args.dry_run:
+            print("Agent bridge installed. New agent sessions should read these project instruction files.")
+            print("For an already-running agent, paste the output of: ai-agent prompt")
+        return
+
+    if args.action == "remove":
+        for path in files:
+            action = remove_marked_block(path, args.dry_run)
+            print(f"{action}: {path}")
+        return
+
+    raise SystemExit(f"Unknown agent action {args.action!r}")
 
 
 def adapter_payload(adapter: str, profile_name: str, profile: dict[str, Any], shell: str) -> dict[str, Any]:
@@ -3414,6 +3566,10 @@ function ai-adapter {{
   Invoke-AiCliSwitcher adapter @args
 }}
 
+function ai-agent {{
+  Invoke-AiCliSwitcher agent @args
+}}
+
 function ai-session {{
   Invoke-AiCliSwitcher session @args
 }}
@@ -3552,6 +3708,10 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} adapter %*
 """,
+        "ai-agent.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} agent %*
+""",
         "ai-session.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} session %*
@@ -3659,6 +3819,7 @@ ai-model() {{ _ai_cli_switcher model "$@"; }}
 ai-strategy() {{ _ai_cli_switcher strategy "$@"; }}
 ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
+ai-agent() {{ _ai_cli_switcher agent "$@"; }}
 ai-session() {{ _ai_cli_switcher session "$@"; }}
 ai-workspace() {{ _ai_cli_switcher workspace "$@"; }}
 ai-ws() {{ _ai_cli_switcher workspace "$@"; }}
@@ -3718,6 +3879,7 @@ function ai-model; _ai_cli_switcher model $argv; end
 function ai-strategy; _ai_cli_switcher strategy $argv; end
 function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
+function ai-agent; _ai_cli_switcher agent $argv; end
 function ai-session; _ai_cli_switcher session $argv; end
 function ai-workspace; _ai_cli_switcher workspace $argv; end
 function ai-ws; _ai_cli_switcher workspace $argv; end
@@ -4462,6 +4624,14 @@ def build_parser() -> argparse.ArgumentParser:
     api_apply_parser.add_argument("--project", action="store_true", help="Save the profile in the current project config.")
     api_apply_parser.add_argument("--allow-secret-env", action="store_true", help="Allow storing env values that look like secrets.")
     api_apply_parser.set_defaults(func=cmd_api)
+
+    agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, and similar CLIs.")
+    agent_parser.add_argument("action", choices=["install", "remove", "paths", "prompt", "instructions"])
+    agent_parser.add_argument("targets", nargs="*", help="Agent targets: codex, claude, opencode, gemini, or all. Defaults to all.")
+    agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
+    agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
+    agent_parser.add_argument("--dry-run", action="store_true")
+    agent_parser.set_defaults(func=cmd_agent)
 
     adapter_parser = sub.add_parser("adapter", help="Generate CLI-specific config snippets for a profile.")
     adapter_parser.add_argument("adapter", choices=["list", "codex", "claude", "gemini", "opencode"])
