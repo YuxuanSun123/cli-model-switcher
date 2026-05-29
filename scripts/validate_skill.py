@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Lightweight repository validation for CI.
+
+This keeps GitHub Actions independent from a local Codex installation while
+still checking the pieces that make this repository usable as a skill.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+
+REQUIRED_FILES = [
+    "SKILL.md",
+    "README.md",
+    "CHANGELOG.md",
+    "scripts/cli_model_switcher.py",
+    "docs/README.zh-CN.md",
+    "docs/README.zh-TW.md",
+    "references/linux-macos.md",
+    "references/shell-integration.md",
+]
+
+
+def fail(message: str) -> None:
+    print(f"error: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def parse_frontmatter(text: str) -> dict[str, str]:
+    if not text.startswith("---\n"):
+        fail("SKILL.md must start with YAML-style frontmatter")
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        fail("SKILL.md frontmatter must be closed with ---")
+    raw = text[4:end]
+    data: dict[str, str] = {}
+    for line in raw.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        match = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", line)
+        if not match:
+            fail(f"unsupported frontmatter line: {line!r}")
+        key, value = match.groups()
+        value = value.strip().strip('"').strip("'")
+        data[key] = value
+    return data
+
+
+def main() -> int:
+    root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
+    for relative in REQUIRED_FILES:
+        path = root / relative
+        if not path.exists():
+            fail(f"required file is missing: {relative}")
+        if path.is_file() and path.stat().st_size == 0:
+            fail(f"required file is empty: {relative}")
+
+    skill_text = (root / "SKILL.md").read_text(encoding="utf-8")
+    frontmatter = parse_frontmatter(skill_text)
+    if frontmatter.get("name") != "cli-model-switcher":
+        fail("SKILL.md frontmatter name must be cli-model-switcher")
+    description = frontmatter.get("description", "")
+    if "command-line AI coding agents" not in description:
+        fail("SKILL.md description should explain the command-line AI agent scope")
+
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for expected in ["install.sh", "install.ps1", "ai-workspace", "ai-agent", "install-bin"]:
+        if expected not in readme:
+            fail(f"README.md is missing expected topic: {expected}")
+
+    script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
+    for command in ["install-unix", "install-bin", "workspace", "agent", "secret"]:
+        if command not in script:
+            fail(f"cli_model_switcher.py is missing expected command text: {command}")
+
+    print("Skill repository is valid.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

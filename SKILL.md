@@ -32,6 +32,7 @@ Use this skill to set up or maintain a local command-line AI profile switcher. P
 Run the helper with Python 3:
 
 ```powershell
+.\install.ps1
 py -3.12 scripts/cli_model_switcher.py init
 py -3.12 scripts/cli_model_switcher.py setup --shell auto
 py -3.12 scripts/cli_model_switcher.py setup --full
@@ -125,6 +126,10 @@ py -3.12 scripts/cli_model_switcher.py install-shell --output ~/.config/ai-cli-s
 py -3.12 scripts/cli_model_switcher.py install-fish --output ~/.config/fish/conf.d/ai-cli-switcher.fish
 python3 scripts/cli_model_switcher.py install-unix --shell auto
 python3 scripts/cli_model_switcher.py install-bin
+```
+
+```bash
+sh install.sh
 ```
 
 The helper creates starter profiles for `codex`, `claude`, and `opencode`. Edit profile fields to match the user's actual commands and model names.

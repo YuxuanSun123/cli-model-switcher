@@ -14,6 +14,8 @@ This project currently follows a lightweight release format while it is still a 
 - `agent` command and `ai-agent` helper for installing Codex/Claude/OpenCode instruction bridges, so agent-side requests like `/switch claude` can run `ai-workspace switch claude`.
 - Additional agent bridge targets for Gemini, Qwen Code, GitHub Copilot/VS Code, Cursor, Windsurf/Cascade, Aider, Cline, Roo Code, generic `AGENTS.md`, and custom `--file` rule paths.
 - `install-bin` for POSIX executable shims on Linux, macOS, and WSL, plus default shim installation and interactive PATH setup from `install-unix` for agent-side and non-interactive shell compatibility.
+- GitHub Actions CI for Windows, Linux, and macOS validation.
+- One-command installers: `install.sh` for Linux/macOS/WSL and `install.ps1` for Windows PowerShell.
 
 ### Fixed
 

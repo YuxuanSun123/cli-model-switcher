@@ -4,6 +4,8 @@
 
 **Project Links:** [Changelog](CHANGELOG.md) | [Releases](https://github.com/YuxuanSun123/cli-model-switcher/releases)
 
+[![CI](https://github.com/YuxuanSun123/cli-model-switcher/actions/workflows/ci.yml/badge.svg)](https://github.com/YuxuanSun123/cli-model-switcher/actions/workflows/ci.yml)
+
 A local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
 
 ## What It Does
@@ -18,24 +20,52 @@ A local profile switcher for command-line AI coding agents. It lets you move bet
 - Audit state and memory for direct-looking secrets before export or migration.
 - Export/import portable profile state between machines.
 
-## Quick Start
+## Quick Install
 
-From the repository root:
+Linux, macOS, or WSL:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex
+```
+
+The one-command installers clone or update the skill under `~/.codex/skills/cli-model-switcher`, run the guided non-interactive setup, install shell helpers, and keep the Linux/macOS/WSL `~/.local/bin` shims in place for agent-side commands.
+
+If you already cloned the repository, run the installer locally:
+
+```powershell
+.\install.ps1
+```
+
+```bash
+sh install.sh
+```
+
+Manual setup from the repository root is still available:
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard
-```
-
-Non-interactive Windows setup:
-
-```powershell
-py -3.12 scripts\cli_model_switcher.py setup --wizard --yes --recipes opencode-openrouter,local-ollama --active opencode-openrouter
 ```
 
 Linux or macOS:
 
 ```bash
 python3 scripts/cli_model_switcher.py setup --wizard
+```
+
+Dry-run the installers before writing anything:
+
+```powershell
+.\install.ps1 -DryRun
+```
+
+```bash
+sh install.sh --dry-run
 ```
 
 After setup, reload your shell profile if the installer asks you to. Then:

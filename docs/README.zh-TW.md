@@ -16,24 +16,52 @@ CLI Model Switcher 是一個本機命令列 AI 設定切換器。它可以在 Co
 - 在匯出或遷移前掃描狀態和記憶中的疑似密鑰。
 - 支援跨機器 portable 匯出和匯入。
 
-## 快速開始
+## 快速安裝
 
-在倉庫根目錄執行：
+Linux、macOS 或 WSL：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex
+```
+
+一鍵安裝器會把 skill clone 或更新到 `~/.codex/skills/cli-model-switcher`，執行非互動向導，安裝 shell 快捷命令，並在 Linux、macOS、WSL 上維護 `~/.local/bin` 裡的可執行 shim，方便 agent 內部呼叫。
+
+如果已經 clone 了倉庫，也可以在本機執行：
+
+```powershell
+.\install.ps1
+```
+
+```bash
+sh install.sh
+```
+
+仍然可以從倉庫根目錄手動安裝：
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard
-```
-
-Windows 非互動安裝：
-
-```powershell
-py -3.12 scripts\cli_model_switcher.py setup --wizard --yes --recipes opencode-openrouter,local-ollama --active opencode-openrouter
 ```
 
 Linux 或 macOS：
 
 ```bash
 python3 scripts/cli_model_switcher.py setup --wizard
+```
+
+安裝前也可以 dry-run：
+
+```powershell
+.\install.ps1 -DryRun
+```
+
+```bash
+sh install.sh --dry-run
 ```
 
 安裝後依提示重新載入 shell 設定，然後執行：

@@ -7,6 +7,18 @@ Use this reference when installing or troubleshooting the CLI model switcher on 
 Prefer the auto installer:
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+```
+
+From an existing checkout:
+
+```bash
+sh install.sh
+```
+
+Manual helper install:
+
+```bash
 python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" install-unix --shell auto
 ```
 

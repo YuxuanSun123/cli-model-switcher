@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        python-version:
+          - "3.12"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Show Python version
+        run: python --version
+
+      - name: Python syntax check
+        run: python -m py_compile scripts/cli_model_switcher.py scripts/validate_skill.py
+
+      - name: Skill metadata validation
+        run: python scripts/validate_skill.py .
+
+      - name: Secret audit
+        run: python scripts/cli_model_switcher.py secret audit --scope all --fail
+
+      - name: Setup wizard dry run
+        run: python scripts/cli_model_switcher.py setup --wizard --yes --recipes opencode-openrouter,local-ollama --active opencode-openrouter --skip-doctor --skip-secret-audit --dry-run
+
+      - name: POSIX helper dry runs
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python scripts/cli_model_switcher.py install-unix --shell bash --profile "$RUNNER_TEMP/ai-cli-bashrc" --bin-dir "$RUNNER_TEMP/ai-cli-bin" --dry-run
+          python scripts/cli_model_switcher.py install-unix --shell zsh --profile "$RUNNER_TEMP/ai-cli-zshrc" --bin-dir "$RUNNER_TEMP/ai-cli-bin" --dry-run
+          python scripts/cli_model_switcher.py install-unix --shell fish --bin-dir "$RUNNER_TEMP/ai-cli-bin" --dry-run
+          python scripts/cli_model_switcher.py install-bin --bin-dir "$RUNNER_TEMP/ai-cli-bin" --dry-run
+          bash ./install.sh --dry-run --dir "$RUNNER_TEMP/cli-model-switcher" --shell bash
+
+      - name: Windows helper dry runs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python scripts/cli_model_switcher.py install-powershell --profile "$env:RUNNER_TEMP\ai-cli-profile.ps1" --dry-run
+          python scripts/cli_model_switcher.py install-cmd --dir "$env:RUNNER_TEMP\ai-cli-cmd" --dry-run
+          ./install.ps1 -DryRun -InstallDir "$env:RUNNER_TEMP\cli-model-switcher" -Shell powershell
