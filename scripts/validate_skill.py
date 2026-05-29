@@ -90,6 +90,8 @@ def main() -> int:
         "README.fr.md",
         "README.it.md",
         "README.ja.md",
+        "简体中文",
+        "繁體中文",
     ]:
         if expected not in readme:
             fail(f"README.md is missing expected topic: {expected}")

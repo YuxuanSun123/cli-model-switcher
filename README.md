@@ -1,6 +1,6 @@
 # CLI Model Switcher
 
-**Language:** English | [Deutsch](docs/README.de.md) | [Français](docs/README.fr.md) | [Italiano](docs/README.it.md) | [日本語](docs/README.ja.md) | [Simplified Chinese](docs/README.zh-CN.md) | [Traditional Chinese](docs/README.zh-TW.md)
+**Language:** English | [Deutsch](docs/README.de.md) | [Français](docs/README.fr.md) | [Italiano](docs/README.it.md) | [日本語](docs/README.ja.md) | [简体中文](docs/README.zh-CN.md) | [繁體中文](docs/README.zh-TW.md)
 
 **Project Links:** [Changelog](CHANGELOG.md) | [Releases](https://github.com/YuxuanSun123/cli-model-switcher/releases)
 
