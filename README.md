@@ -78,9 +78,13 @@ On Linux, macOS, or WSL with tmux, this is the closest experience to "switch Cla
 
 ```bash
 ai-workspace targets set codex claude opencode-openrouter
+ai-workspace targets set codex claude opencode-openrouter --project
 ai-workspace up
+ai-wup
 ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
+ai-wgo claude
+ai-workspace choose
 ai-workspace next
 ai-workspace prev
 ai-workspace add gemini
@@ -151,8 +155,10 @@ ai-use local-private
 
 ai-workspace targets set codex claude opencode-openrouter
 ai-workspace up
+ai-wup
 ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
+ai-wgo claude
 ai-workspace add gemini
 ai-session start claude
 ai-handoff claude "Review this task from another angle."
@@ -195,6 +201,7 @@ Generated helpers include:
 - `ai-adapter`
 - `ai-session`
 - `ai-workspace`
+- `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`
 - `ai-handoff`
 - `ai-doctor`
 - `ai-secret`

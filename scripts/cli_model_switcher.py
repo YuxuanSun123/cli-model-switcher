@@ -989,7 +989,7 @@ def effective_state(start: Path | None = None) -> tuple[dict[str, Any], Path | N
         merged = json.loads(json.dumps(state))
         merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
         merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
-        if project_config.get("workspace_targets"):
+        if "workspace_targets" in project_config:
             merged["workspace_targets"] = project_config["workspace_targets"]
         if project_config.get("active"):
             merged["active"] = project_config["active"]
@@ -1280,6 +1280,10 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
         "function ai-adapter",
         "function ai-session",
         "function ai-workspace",
+        "function ai-ws",
+        "function ai-wup",
+        "function ai-wgo",
+        "function ai-wpick",
         "function ai-handoff",
         "function ai-memory",
         "function ai-page",
@@ -1307,6 +1311,10 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
             "ai-adapter.cmd",
             "ai-session.cmd",
             "ai-workspace.cmd",
+            "ai-ws.cmd",
+            "ai-wup.cmd",
+            "ai-wgo.cmd",
+            "ai-wpick.cmd",
             "ai-handoff.cmd",
             "ai-memory.cmd",
             "ai-page.cmd",
@@ -2829,13 +2837,32 @@ def workspace_targets_for_start(state: dict[str, Any], requested: list[str] | No
     raise SystemExit("No workspace targets are configured. Run ai-workspace targets set codex claude opencode first.")
 
 
+def workspace_targets_state_for_update(args: argparse.Namespace, state: dict[str, Any]) -> tuple[dict[str, Any], str, Path | None]:
+    cwd = Path(getattr(args, "cwd", None)).expanduser().resolve() if getattr(args, "cwd", None) else Path.cwd().resolve()
+    if getattr(args, "project", False):
+        config_path = find_project_config(cwd)
+        root = config_path.parent if config_path else cwd
+        config = load_project_config_at(root)
+        return config, f"project {root}", root
+    return state, "global", None
+
+
+def save_workspace_targets_state(target_state: dict[str, Any], project_root: Path | None) -> None:
+    if project_root:
+        save_project_config(target_state, project_root)
+        return
+    save_state(target_state)
+
+
 def workspace_status(record: dict[str, Any]) -> str:
     backend = str(record.get("backend", ""))
     if backend == "tmux":
         return "running" if tmux_has_session(str(record.get("backend_id", ""))) else "missing"
     if backend == "wt":
         return "external"
-    return "command"
+    if backend == "print":
+        return "recorded"
+    return "recorded"
 
 
 def workspace_record_for_target(state: dict[str, Any], target: str) -> tuple[str, dict[str, Any] | None]:
@@ -2880,6 +2907,27 @@ def tmux_new_window(args: list[str]) -> str:
         text=True,
     )
     return result.stdout.strip()
+
+
+def tmux_workspace_windows(session_id: str) -> list[dict[str, str]]:
+    if not shutil.which("tmux") or not tmux_has_session(session_id):
+        return []
+    result = subprocess.run(
+        ["tmux", "list-windows", "-t", session_id, "-F", "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    windows: list[dict[str, str]] = []
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 4:
+            continue
+        windows.append({"id": parts[0], "index": parts[1], "name": parts[2], "active": parts[3]})
+    return windows
 
 
 def start_tmux_workspace(workspace_id: str, entries: list[dict[str, Any]], attach: bool, reuse: bool) -> str:
@@ -2995,6 +3043,52 @@ def print_workspace_shortcuts(backend: str) -> None:
         print("Windows Terminal shortcuts: Ctrl+Tab switches tabs; Alt+number jumps to a tab.")
 
 
+def workspace_payload(name: str, record: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(record)
+    payload["name"] = name
+    payload["status"] = workspace_status(record)
+    if record.get("backend") == "tmux":
+        payload["tmux_windows"] = tmux_workspace_windows(str(record.get("backend_id", "")))
+    return payload
+
+
+def print_workspace_show(name: str, record: dict[str, Any]) -> None:
+    payload = workspace_payload(name, record)
+    print(f"Workspace {name}: {payload.get('backend')} {payload.get('status')} ({payload.get('backend_id')})")
+    if payload.get("cwd"):
+        print(f"cwd: {payload.get('cwd')}")
+    windows = {window.get("id"): window for window in payload.get("tmux_windows", [])}
+    for index, entry in enumerate(payload.get("entries", []), start=1):
+        target = str(entry.get("tmux_target", ""))
+        active = "*" if windows.get(target, {}).get("active") == "1" else " "
+        label = entry.get("session_name") or entry.get("profile") or entry.get("target")
+        model = entry.get("model") or ""
+        command = entry.get("command") or ""
+        print(f"{active} {index}. {label}: {entry.get('profile')} {model} [{command}]")
+    if payload.get("backend") == "tmux":
+        print("Use: ai-workspace choose, ai-workspace switch NAME, ai-workspace next, ai-workspace prev")
+    elif payload.get("backend") == "wt":
+        print("Use Windows Terminal tabs to focus an agent, or ai-workspace add PROFILE to open another tab.")
+
+
+def workspace_choose_entry(record: dict[str, Any], index: int | None) -> dict[str, Any]:
+    entries = list(record.get("entries", []))
+    if not entries:
+        raise SystemExit("Workspace has no entries.")
+    if index is None:
+        for offset, entry in enumerate(entries, start=1):
+            print(f"{offset}. {entry.get('session_name')} ({entry.get('profile')})")
+        if not sys.stdin.isatty():
+            raise SystemExit("workspace choose needs an interactive terminal or --index.")
+        raw = input("Choose agent number: ").strip()
+        if not raw.isdigit():
+            raise SystemExit("Invalid selection.")
+        index = int(raw)
+    if index < 1 or index > len(entries):
+        raise SystemExit(f"Selection {index} is out of range 1-{len(entries)}.")
+    return entries[index - 1]
+
+
 def cmd_workspace(args: argparse.Namespace) -> None:
     state = normalize_state(ensure_state())
     workspaces = state.setdefault("workspaces", {})
@@ -3002,10 +3096,7 @@ def cmd_workspace(args: argparse.Namespace) -> None:
     if args.action == "list":
         payload = []
         for name, record in sorted(workspaces.items()):
-            item = dict(record)
-            item["name"] = name
-            item["status"] = workspace_status(record)
-            payload.append(item)
+            payload.append(workspace_payload(name, record))
         if args.json:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
             return
@@ -3017,11 +3108,24 @@ def cmd_workspace(args: argparse.Namespace) -> None:
             print(f"{item['name']}: {item.get('backend')} {item.get('status')} [{profiles}] ({item.get('backend_id')})")
         return
 
+    if args.action in {"show", "status"}:
+        workspace_name, record = workspace_record_for_target(state, args.name or "default")
+        if not record:
+            raise SystemExit(f"Unknown workspace {args.name or 'default'!r}. Use ai-workspace list or ai-workspace up.")
+        payload = workspace_payload(workspace_name, record)
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print_workspace_show(workspace_name, record)
+        return
+
     if args.action == "targets":
         action = args.targets_action or "show"
-        current = configured_workspace_targets(state)
+        cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path.cwd().resolve()
+        effective, _ = effective_state(cwd)
+        current = configured_workspace_targets(effective)
         if action == "show":
-            payload = {"targets": current, "suggested": suggested_workspace_targets(state)}
+            payload = {"targets": current, "suggested": suggested_workspace_targets(effective)}
             if args.json:
                 print(json.dumps(payload, indent=2, ensure_ascii=False))
             elif current:
@@ -3030,36 +3134,38 @@ def cmd_workspace(args: argparse.Namespace) -> None:
                 print("Workspace targets are not configured.")
                 print("Suggested: " + " ".join(payload["suggested"]))
             return
+        target_state, label, project_root = workspace_targets_state_for_update(args, state)
+        current = configured_workspace_targets(target_state)
         if action == "set":
             targets = dedupe_preserve_order(split_workspace_targets(args.targets))
             if not targets:
                 raise SystemExit("workspace targets set requires at least one profile, alias, strategy, or recipe.")
-            state["workspace_targets"] = targets
-            save_state(state)
-            print("Workspace targets: " + " ".join(targets))
+            target_state["workspace_targets"] = targets
+            save_workspace_targets_state(target_state, project_root)
+            print(f"Workspace targets ({label}): " + " ".join(targets))
             return
         if action == "add":
             targets = dedupe_preserve_order(current + split_workspace_targets(args.targets))
             if targets == current:
-                print("Workspace targets unchanged: " + " ".join(current))
+                print(f"Workspace targets unchanged ({label}): " + " ".join(current))
                 return
-            state["workspace_targets"] = targets
-            save_state(state)
-            print("Workspace targets: " + " ".join(targets))
+            target_state["workspace_targets"] = targets
+            save_workspace_targets_state(target_state, project_root)
+            print(f"Workspace targets ({label}): " + " ".join(targets))
             return
         if action == "remove":
             remove = set(split_workspace_targets(args.targets))
             if not remove:
                 raise SystemExit("workspace targets remove requires at least one target.")
             targets = [target for target in current if target not in remove]
-            state["workspace_targets"] = targets
-            save_state(state)
-            print("Workspace targets: " + (" ".join(targets) if targets else "(empty)"))
+            target_state["workspace_targets"] = targets
+            save_workspace_targets_state(target_state, project_root)
+            print(f"Workspace targets ({label}): " + (" ".join(targets) if targets else "(empty)"))
             return
         if action == "reset":
-            state["workspace_targets"] = []
-            save_state(state)
-            print("Workspace targets reset. Future starts will use suggested targets.")
+            target_state["workspace_targets"] = []
+            save_workspace_targets_state(target_state, project_root)
+            print(f"Workspace targets reset ({label}). Future starts will use suggested targets.")
             return
         raise SystemExit(f"Unknown workspace targets action {action!r}")
 
@@ -3187,6 +3293,23 @@ def cmd_workspace(args: argparse.Namespace) -> None:
         tmux_attach_or_switch(backend_id)
         return
 
+    if args.action in {"choose", "pick"}:
+        workspace_name, record = workspace_record_for_target(state, args.name or "default")
+        if not record:
+            raise SystemExit(f"Unknown workspace {args.name or 'default'!r}. Use ai-workspace list or ai-workspace up.")
+        if record.get("backend") != "tmux":
+            print_workspace_show(workspace_name, record)
+            print(f"Workspace {workspace_name} uses {record.get('backend')}; interactive focusing is only available for tmux.")
+            return
+        backend_id = str(record.get("backend_id", ""))
+        if not tmux_has_session(backend_id):
+            raise SystemExit(f"tmux workspace {backend_id!r} is not running.")
+        entry = workspace_choose_entry(record, args.index)
+        tmux_target = str(entry.get("tmux_target") or f"{backend_id}:{entry.get('session_name')}")
+        subprocess.run(["tmux", "select-window", "-t", tmux_target], check=True)
+        tmux_attach_or_switch(backend_id)
+        return
+
     if args.action == "stop":
         workspace_name, record = workspace_record_for_target(state, args.name or "default")
         if not record:
@@ -3297,6 +3420,22 @@ function ai-session {{
 
 function ai-workspace {{
   Invoke-AiCliSwitcher workspace @args
+}}
+
+function ai-ws {{
+  Invoke-AiCliSwitcher workspace @args
+}}
+
+function ai-wup {{
+  Invoke-AiCliSwitcher workspace up @args
+}}
+
+function ai-wgo {{
+  Invoke-AiCliSwitcher workspace switch @args
+}}
+
+function ai-wpick {{
+  Invoke-AiCliSwitcher workspace choose @args
 }}
 
 function ai-handoff {{
@@ -3421,6 +3560,22 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} workspace %*
 """,
+        "ai-ws.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} workspace %*
+""",
+        "ai-wup.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} workspace up %*
+""",
+        "ai-wgo.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} workspace switch %*
+""",
+        "ai-wpick.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} workspace choose %*
+""",
         "ai-handoff.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} handoff %*
@@ -3506,6 +3661,10 @@ ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
 ai-session() {{ _ai_cli_switcher session "$@"; }}
 ai-workspace() {{ _ai_cli_switcher workspace "$@"; }}
+ai-ws() {{ _ai_cli_switcher workspace "$@"; }}
+ai-wup() {{ _ai_cli_switcher workspace up "$@"; }}
+ai-wgo() {{ _ai_cli_switcher workspace switch "$@"; }}
+ai-wpick() {{ _ai_cli_switcher workspace choose "$@"; }}
 ai-handoff() {{ _ai_cli_switcher handoff "$@"; }}
 ai-doctor() {{ _ai_cli_switcher doctor "$@"; }}
 ai-secret() {{ _ai_cli_switcher secret "$@"; }}
@@ -3561,6 +3720,10 @@ function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
 function ai-session; _ai_cli_switcher session $argv; end
 function ai-workspace; _ai_cli_switcher workspace $argv; end
+function ai-ws; _ai_cli_switcher workspace $argv; end
+function ai-wup; _ai_cli_switcher workspace up $argv; end
+function ai-wgo; _ai_cli_switcher workspace switch $argv; end
+function ai-wpick; _ai_cli_switcher workspace choose $argv; end
 function ai-handoff; _ai_cli_switcher handoff $argv; end
 function ai-doctor; _ai_cli_switcher doctor $argv; end
 function ai-secret; _ai_cli_switcher secret $argv; end
@@ -4373,6 +4536,11 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_list_parser = workspace_sub.add_parser("list", help="List managed AI workspaces.")
     workspace_list_parser.add_argument("--json", action="store_true")
     workspace_list_parser.set_defaults(func=cmd_workspace)
+    for action_name in ["show", "status"]:
+        workspace_show_parser = workspace_sub.add_parser(action_name, help=f"{action_name.capitalize()} one managed AI workspace.")
+        workspace_show_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
+        workspace_show_parser.add_argument("--json", action="store_true")
+        workspace_show_parser.set_defaults(func=cmd_workspace)
     workspace_start_parser = workspace_sub.add_parser("start", help="Start several profiles in one terminal workspace.")
     workspace_start_parser.add_argument("targets", nargs="*", help="Profiles, aliases, strategies, or recipes to open. Defaults to configured or suggested targets.")
     workspace_start_parser.add_argument("--backend", choices=["auto", "tmux", "wt", "print"], default="auto")
@@ -4394,6 +4562,8 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_targets_parser = workspace_sub.add_parser("targets", help="Show or configure default workspace targets.")
     workspace_targets_parser.add_argument("targets_action", nargs="?", choices=["show", "set", "add", "remove", "reset"], default="show")
     workspace_targets_parser.add_argument("targets", nargs="*", help="Profiles, aliases, strategies, or recipes. Comma-separated values are accepted.")
+    workspace_targets_parser.add_argument("--project", action="store_true", help="Save targets in the current project config instead of global state.")
+    workspace_targets_parser.add_argument("--cwd", help="Project directory used for effective target lookup or --project writes.")
     workspace_targets_parser.add_argument("--json", action="store_true")
     workspace_targets_parser.set_defaults(func=cmd_workspace)
     workspace_add_parser = workspace_sub.add_parser("add", help="Add one or more agents to an existing workspace.")
@@ -4418,6 +4588,11 @@ def build_parser() -> argparse.ArgumentParser:
         workspace_step_parser = workspace_sub.add_parser(action_name, help=help_text)
         workspace_step_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
         workspace_step_parser.set_defaults(func=cmd_workspace)
+    for action_name in ["choose", "pick"]:
+        workspace_choose_parser = workspace_sub.add_parser(action_name, help="Interactively choose an agent window in a tmux workspace.")
+        workspace_choose_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
+        workspace_choose_parser.add_argument("--index", type=int, help="Choose by 1-based entry number without prompting.")
+        workspace_choose_parser.set_defaults(func=cmd_workspace)
     workspace_stop_parser = workspace_sub.add_parser("stop", help="Stop or forget a managed workspace.")
     workspace_stop_parser.add_argument("name", nargs="?", help="Workspace name. Defaults to 'default'.")
     workspace_stop_parser.set_defaults(func=cmd_workspace)

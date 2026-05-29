@@ -63,8 +63,11 @@ py -3.12 scripts/cli_model_switcher.py session switch claude
 py -3.12 scripts/cli_model_switcher.py session stop router
 py -3.12 scripts/cli_model_switcher.py workspace start codex claude opencode-openrouter --backend tmux --attach
 py -3.12 scripts/cli_model_switcher.py workspace targets set codex claude opencode-openrouter
+py -3.12 scripts/cli_model_switcher.py workspace targets set codex claude --project
 py -3.12 scripts/cli_model_switcher.py workspace up
 py -3.12 scripts/cli_model_switcher.py workspace switch claude
+py -3.12 scripts/cli_model_switcher.py workspace choose
+py -3.12 scripts/cli_model_switcher.py workspace show
 py -3.12 scripts/cli_model_switcher.py workspace add gemini
 py -3.12 scripts/cli_model_switcher.py workspace next
 py -3.12 scripts/cli_model_switcher.py workspace prev
@@ -158,7 +161,7 @@ Prefer script commands over manual JSON edits:
 - `strategy install` creates task aliases so `use code-fast`, `use code-best`, `use local-private`, and `use cheap-long-context` switch to the matching profile/model/API.
 - `recipe list`, `recipe show NAME`, and `recipe install NAME --use` install common profile bundles without remembering long arguments. Built-in recipes include `codex-openai`, `claude-native`, `gemini-cli`, `opencode-openrouter`, `opencode-openrouter-best`, `opencode-deepseek`, `local-ollama`, `local-lmstudio`, and `custom-gateway`.
 - `session start PROFILE --backend auto|tmux|wt|powershell|print`, `session list`, `session switch NAME`, and `session stop NAME` manage multiple AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printed fallback commands. Use `--cwd PATH` to launch from a project directory, and repeat `--arg=VALUE` for agent CLI arguments such as `--arg=--debug`.
-- `workspace targets set PROFILE...`, `workspace up`, `workspace start PROFILE... --backend auto|tmux|wt|print`, `workspace add PROFILE...`, `workspace switch PROFILE`, `workspace next`, `workspace prev`, `workspace attach`, `workspace list`, and `workspace stop` manage a same-terminal multi-agent workspace. Use tmux for true in-terminal switching on Linux/macOS/WSL, Windows Terminal tabs for Windows, or `--backend print` as a no-launch fallback. If no targets are given, `workspace start` and `workspace up` use configured targets or suggested profiles from the current state.
+- `workspace targets set PROFILE... [--project]`, `workspace up`, `workspace start PROFILE... --backend auto|tmux|wt|print`, `workspace add PROFILE...`, `workspace show`, `workspace choose`, `workspace switch PROFILE`, `workspace next`, `workspace prev`, `workspace attach`, `workspace list`, and `workspace stop` manage a same-terminal multi-agent workspace. Use tmux for true in-terminal switching on Linux/macOS/WSL, Windows Terminal tabs for Windows, or `--backend print` as a no-launch fallback. If no targets are given, `workspace start` and `workspace up` use configured targets or suggested profiles from the current state.
 - `handoff PROFILE "NOTE"` writes a tagged session-memory handoff note and starts the target session so another agent can continue with the shared context.
 - `add NAME --command COMMAND --model MODEL` creates a new profile.
 - `add NAME --project --command COMMAND --model MODEL` creates a project-local profile override.
@@ -180,8 +183,8 @@ Prefer script commands over manual JSON edits:
 - `doctor` checks command availability, env vars, state files, and memory files.
 - `doctor --fix` repairs missing or corrupt state, invalid active profiles, broken aliases, missing memory files, and stale managed wrappers when possible. Use `--json` for automation.
 - `secret audit --scope all|state|project|memory` scans profiles and memory without printing secret values. Use `--fail` in scripts to return nonzero when findings exist.
-- `install-powershell --profile $PROFILE` writes `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-session`, `ai-workspace`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-page`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
-- `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ai-use.cmd`, `ai-workspace.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
+- `install-powershell --profile $PROFILE` writes `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-session`, `ai-workspace`, `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-page`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
+- `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ai-use.cmd`, `ai-workspace.cmd`, `ai-wup.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
 - `install-shell --output FILE` writes Bash/Zsh helper functions.
 - `install-fish --output FILE` writes fish helper functions.
 - `install-unix --shell auto|bash|zsh|fish` installs Linux/macOS shell helpers and updates the relevant shell profile.
