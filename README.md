@@ -151,6 +151,10 @@ Once you are inside Codex, Claude, or OpenCode, your input belongs to that agent
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms
+ai-agent platforms openclaw
+ai-agent paths openclaw --dir ~/.openclaw/workspace
+ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
 ai-agent detect
 ai-agent install --detected
@@ -173,10 +177,11 @@ Built-in agent bridge targets include:
 - `codex`, `claude`, `opencode`, `gemini`, `qwen`
 - `copilot` / `vscode`, `cursor`, `windsurf` / `cascade`
 - `continue` / `continue-dev`, `goose`, `kiro` / `kiro-cli`
+- `openclaw` / `claw` / `open-claw`
 - `aider`, `cline`, `roo`
 - `generic` for `AGENTS.md`, plus `--file PATH` for any custom rule file
 
-Use `ai-agent targets` to list every supported target and file path, `ai-agent detect` to inspect the current project for existing agent rule files, or `ai-agent install --detected` to install only the bridges that match detected files or dedicated rule directories.
+Use `ai-agent platforms` to list platform-level adapters. OpenClaw has a dedicated adapter for its default `~/.openclaw/workspace`; `ai-agent install openclaw --dir ~/.openclaw/workspace` writes both `AGENTS.md` and `TOOLS.md` there. See the [OpenClaw agent docs](https://docs.openclaw.ai/agent) for the workspace-side convention. Use `ai-agent targets` to list every supported target and file path, `ai-agent detect` to inspect the current project for existing agent rule files, or `ai-agent install --detected` to install only the bridges that match detected files or dedicated rule directories.
 
 ## Sessions and Handoffs
 
@@ -237,6 +242,8 @@ ai-workspace add gemini
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms openclaw
+ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
 ai-agent detect
 ai-agent install --detected

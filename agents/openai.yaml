@@ -1,4 +1,4 @@
 interface:
   display_name: "CLI Model Switcher"
-  short_description: "Switch CLI AI profiles with recipes, guided setup, shared memory, sessions, and portable state."
-  default_prompt: "Use $cli-model-switcher to set up CLI AI model profiles with setup wizard, profile recipes, API tests, model strategies, adapters, shared memory, terminal sessions, handoffs, doctor repairs, secret audits, and portable imports/exports."
+  short_description: "Switch CLI AI profiles and install agent-platform bridges with recipes, shared memory, sessions, and portable state."
+  default_prompt: "Use $cli-model-switcher to set up CLI AI model profiles with setup wizard, profile recipes, API tests, model strategies, adapters, shared memory, terminal sessions, handoffs, agent-platform bridges such as OpenClaw, doctor repairs, secret audits, and portable imports/exports."

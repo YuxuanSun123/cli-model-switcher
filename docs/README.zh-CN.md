@@ -143,6 +143,8 @@ ai-workspace start codex claude --backend print
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms openclaw
+ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
 ai-agent detect
 ai-agent install --detected
@@ -165,6 +167,7 @@ handoff claude review the current changes
 - `codex`、`claude`、`opencode`、`gemini`、`qwen`
 - `copilot` / `vscode`、`cursor`、`windsurf` / `cascade`
 - `continue` / `continue-dev`、`goose`、`kiro` / `kiro-cli`
+- `openclaw` / `claw` / `open-claw`
 - `aider`、`cline`、`roo`
 - `generic` 写入 `AGENTS.md`，也可以用 `--file PATH` 写入任意自定义规则文件
 
@@ -222,6 +225,8 @@ ai-workspace add gemini
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms openclaw
+ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
 ai-agent detect
 ai-agent install --detected

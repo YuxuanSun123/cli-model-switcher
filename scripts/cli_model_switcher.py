@@ -44,6 +44,7 @@ AGENT_BRIDGE_TARGET_FILES: dict[str, list[str]] = {
     "copilot": [".github/copilot-instructions.md"],
     "cursor": [".cursor/rules/ai-cli-switcher.mdc"],
     "goose": [".goosehints"],
+    "openclaw": ["AGENTS.md", "TOOLS.md"],
     "opencode": ["AGENTS.md"],
     "gemini": ["GEMINI.md"],
     "generic": ["AGENTS.md"],
@@ -58,9 +59,27 @@ AGENT_BRIDGE_ALIASES = {
     "github": "copilot",
     "github-copilot": "copilot",
     "kiro-cli": "kiro",
+    "claw": "openclaw",
+    "open-claw": "openclaw",
     "qwen-code": "qwen",
     "roo-code": "roo",
     "vscode": "copilot",
+}
+AGENT_PLATFORM_SPECS: dict[str, dict[str, Any]] = {
+    "openclaw": {
+        "label": "OpenClaw",
+        "targets": ["openclaw"],
+        "default_dir": "~/.openclaw/workspace",
+        "docs_url": "https://docs.openclaw.ai/agent",
+        "setup_command": "openclaw setup --workspace ~/.openclaw/workspace",
+        "detect_command": "ai-agent detect --dir ~/.openclaw/workspace openclaw",
+        "install_command": "ai-agent install openclaw --dir ~/.openclaw/workspace",
+        "notes": [
+            "OpenClaw loads AGENTS.md as operating instructions from its agent workspace.",
+            "TOOLS.md is used for local tool conventions and is also loaded by OpenClaw sessions.",
+            "Use --dir to target a non-default OpenClaw workspace.",
+        ],
+    }
 }
 POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ayatori": [],
@@ -2538,6 +2557,142 @@ def print_agent_targets(root: Path, targets: list[str] | None, as_json: bool) ->
             print(f"  {alias} -> {target}")
 
 
+def agent_platform_available() -> list[str]:
+    return sorted(set(AGENT_BRIDGE_TARGET_FILES) | set(AGENT_PLATFORM_SPECS))
+
+
+def agent_platform_names(values: list[str] | None) -> list[str] | None:
+    if not values:
+        return None
+    names: list[str] = []
+    available = set(agent_platform_available())
+    for value in values:
+        for item in re.split(r"[, ]+", str(value).strip()):
+            if not item:
+                continue
+            item = agent_bridge_target_name(item)
+            if item == "all":
+                return agent_platform_available()
+            if item not in available:
+                choices = ", ".join(agent_platform_available())
+                raise SystemExit(f"Unknown agent platform {item!r}. Available: {choices}, all")
+            names.append(item)
+    return dedupe_preserve_order(names)
+
+
+def agent_platform_label(name: str) -> str:
+    labels = {
+        "aider": "Aider",
+        "claude": "Claude Code",
+        "cline": "Cline",
+        "codex": "Codex CLI",
+        "continue": "Continue",
+        "copilot": "GitHub Copilot / VS Code",
+        "cursor": "Cursor",
+        "gemini": "Gemini CLI",
+        "generic": "Generic AGENTS.md",
+        "goose": "Goose",
+        "kiro": "Kiro",
+        "opencode": "OpenCode",
+        "qwen": "Qwen Code",
+        "roo": "Roo Code",
+        "windsurf": "Windsurf / Cascade",
+    }
+    spec = AGENT_PLATFORM_SPECS.get(name, {})
+    return str(spec.get("label") or labels.get(name) or name)
+
+
+def agent_platform_root(spec: dict[str, Any], root: Path, requested_root: bool) -> Path:
+    if requested_root:
+        return root
+    raw = str(spec.get("default_dir", "."))
+    if raw in {".", "<project>", "project"}:
+        return root
+    return Path(raw).expanduser().resolve()
+
+
+def shell_path_arg(path: Path) -> str:
+    value = str(path)
+    return f'"{value}"' if re.search(r"\s", value) else value
+
+
+def agent_platform_info(root: Path, names: list[str] | None = None, requested_root: bool = False) -> list[dict[str, Any]]:
+    selected = names or agent_platform_available()
+    reverse_aliases: dict[str, list[str]] = {}
+    for alias, target in AGENT_BRIDGE_ALIASES.items():
+        reverse_aliases.setdefault(target, []).append(alias)
+    payload: list[dict[str, Any]] = []
+    for name in selected:
+        spec = dict(AGENT_PLATFORM_SPECS.get(name, {}))
+        targets = list(spec.get("targets") or ([name] if name in AGENT_BRIDGE_TARGET_FILES else []))
+        platform_root = agent_platform_root(spec, root, requested_root)
+        bridge_info = agent_bridge_target_info(platform_root, targets) if targets else []
+        files = [file for item in bridge_info for file in item["files"]]
+        default_dir = str(spec.get("default_dir", "."))
+        target_text = " ".join(targets)
+        path_arg = shell_path_arg(platform_root)
+        setup_command = spec.get("setup_command")
+        detect_command = spec.get("detect_command") or (f"ai-agent detect {name}" if targets else None)
+        install_command = spec.get("install_command") or (f"ai-agent install {name}" if targets else None)
+        if requested_root and targets:
+            setup_command = f"openclaw setup --workspace {path_arg}" if name == "openclaw" else setup_command
+            detect_command = f"ai-agent detect --dir {path_arg} {target_text}"
+            install_command = f"ai-agent install {target_text} --dir {path_arg}"
+        payload.append({
+            "platform": name,
+            "label": agent_platform_label(name),
+            "aliases": sorted(reverse_aliases.get(name, [])),
+            "targets": targets,
+            "default_dir": default_dir,
+            "root": str(platform_root),
+            "docs_url": spec.get("docs_url"),
+            "setup_command": setup_command,
+            "detect_command": detect_command,
+            "install_command": install_command,
+            "notes": list(spec.get("notes", [])),
+            "files": files,
+        })
+    return payload
+
+
+def print_agent_platforms(root: Path, names: list[str] | None, as_json: bool, requested_root: bool = False) -> None:
+    info = agent_platform_info(root, names, requested_root)
+    payload = {
+        "root": str(root),
+        "requested_root": requested_root,
+        "platforms": info,
+        "aliases": dict(sorted(AGENT_BRIDGE_ALIASES.items())),
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print("Supported agent platforms:")
+    detailed = bool(names)
+    for item in info:
+        aliases = f" (aliases: {', '.join(item['aliases'])})" if item["aliases"] else ""
+        files = ", ".join(file["relative"] for file in item["files"]) or "(no bridge files)"
+        if detailed:
+            print(f"  {item['platform']}{aliases}: {item['label']}")
+            if item["default_dir"] != "." or requested_root:
+                print(f"    workspace: {item['root']}")
+            print(f"    targets: {', '.join(item['targets']) if item['targets'] else '(none)'}")
+            print(f"    files: {files}")
+            if item.get("docs_url"):
+                print(f"    docs: {item['docs_url']}")
+            if item.get("setup_command"):
+                print(f"    setup: {item['setup_command']}")
+            if item.get("detect_command"):
+                print(f"    detect: {item['detect_command']}")
+            if item.get("install_command"):
+                print(f"    install: {item['install_command']}")
+            for note in item.get("notes", []):
+                print(f"    note: {note}")
+        else:
+            print(f"  {item['platform']}{aliases}: {item['label']} -> {files}")
+    if not detailed:
+        print("Show details for one platform: ai-agent platforms openclaw")
+
+
 def agent_bridge_detection_payload(root: Path, targets: list[str] | None = None) -> dict[str, Any]:
     info = agent_bridge_target_info(root, targets)
     detected: list[dict[str, Any]] = []
@@ -2702,6 +2857,12 @@ def cmd_agent(args: argparse.Namespace) -> None:
 
     if getattr(args, "detected", False) and args.action not in {"install", "remove", "paths"}:
         raise SystemExit("--detected is only supported with agent install, agent remove, or agent paths")
+
+    if args.action in {"platform", "platforms"}:
+        values = getattr(args, "targets", [])
+        names = agent_platform_names(values) if not getattr(args, "all", False) else agent_platform_available()
+        print_agent_platforms(root, names, getattr(args, "json", False), bool(getattr(args, "dir", None)))
+        return
 
     if args.action in {"targets", "detect"}:
         values = getattr(args, "targets", [])
@@ -5100,9 +5261,9 @@ def build_parser() -> argparse.ArgumentParser:
     api_apply_parser.add_argument("--allow-secret-env", action="store_true", help="Allow storing env values that look like secrets.")
     api_apply_parser.set_defaults(func=cmd_api)
 
-    agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, and similar CLIs.")
-    agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "prompt", "instructions"])
-    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, gemini, qwen, copilot, cursor, windsurf, aider, cline, roo, continue, goose, kiro, generic, or all. Defaults to all.")
+    agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, OpenClaw, and similar CLIs.")
+    agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "platform", "platforms", "prompt", "instructions"])
+    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, openclaw, gemini, qwen, copilot, cursor, windsurf, aider, cline, roo, continue, goose, kiro, generic, or all. Defaults to all.")
     agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
     agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
     agent_parser.add_argument("--file", action="append", default=[], help="Extra project instruction/rules file to update. Repeat as needed.")

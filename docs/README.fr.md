@@ -141,6 +141,8 @@ Une fois dans Codex, Claude ou OpenCode, votre saisie appartient à cet agent. I
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms openclaw
+ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
 ai-agent detect
 ai-agent install --detected
@@ -201,6 +203,8 @@ ai-workspace switch claude
 ai-wgo claude
 ai-agent install codex claude opencode
 ai-agent install continue goose kiro
+ai-agent platforms openclaw
+ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
 ai-agent detect
 ai-agent install --detected
