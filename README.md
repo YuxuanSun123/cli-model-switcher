@@ -153,6 +153,7 @@ ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
 ai-agent targets
 ai-agent detect
+ai-agent install --detected
 ai-agent install --file .my-agent-rules.md
 ai-agent prompt
 ```
@@ -175,7 +176,7 @@ Built-in agent bridge targets include:
 - `aider`, `cline`, `roo`
 - `generic` for `AGENTS.md`, plus `--file PATH` for any custom rule file
 
-Use `ai-agent targets` to list every supported target and file path, or `ai-agent detect` to inspect the current project for existing agent rule files before installing bridges.
+Use `ai-agent targets` to list every supported target and file path, `ai-agent detect` to inspect the current project for existing agent rule files, or `ai-agent install --detected` to install only the bridges that match detected files or dedicated rule directories.
 
 ## Sessions and Handoffs
 
@@ -238,6 +239,7 @@ ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
 ai-agent targets
 ai-agent detect
+ai-agent install --detected
 ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."

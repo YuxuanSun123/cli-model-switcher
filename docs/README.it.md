@@ -143,6 +143,7 @@ ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
 ai-agent targets
 ai-agent detect
+ai-agent install --detected
 ai-agent install --file .my-agent-rules.md
 ai-agent prompt
 ```
@@ -202,6 +203,7 @@ ai-agent install codex claude opencode
 ai-agent install continue goose kiro
 ai-agent targets
 ai-agent detect
+ai-agent install --detected
 ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."

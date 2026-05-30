@@ -91,6 +91,7 @@ def main() -> int:
         "ai-about",
         "ai-agent targets",
         "ai-agent detect",
+        "ai-agent install --detected",
         "continue",
         "goose",
         "kiro",
@@ -121,7 +122,7 @@ def main() -> int:
                 fail(f"{relative} is missing installer next-step hint: {expected}")
 
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
-    for command in ["about", "ayatori", "targets", "detect", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "--detected", "targets", "detect", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 

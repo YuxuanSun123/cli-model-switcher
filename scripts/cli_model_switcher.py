@@ -2538,7 +2538,7 @@ def print_agent_targets(root: Path, targets: list[str] | None, as_json: bool) ->
             print(f"  {alias} -> {target}")
 
 
-def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> None:
+def agent_bridge_detection_payload(root: Path, targets: list[str] | None = None) -> dict[str, Any]:
     info = agent_bridge_target_info(root, targets)
     detected: list[dict[str, Any]] = []
     ready: list[dict[str, Any]] = []
@@ -2546,7 +2546,7 @@ def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> 
         existing = [file for file in item["files"] if file["exists"]]
         parent_ready = [
             file for file in item["files"]
-            if not file["exists"] and file["parent_exists"] and Path(file["path"]).parent != root
+            if not file["exists"] and file["parent_exists"] and agent_bridge_parent_is_signal(Path(file["path"]), root)
         ]
         if existing:
             detected.append({"target": item["target"], "files": existing})
@@ -2559,10 +2559,38 @@ def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> 
         "install_detected": [item["target"] for item in detected],
         "install_ready": [item["target"] for item in ready],
     }
+    suggested = dedupe_preserve_order(payload["install_detected"] + payload["install_ready"])
+    payload["install_targets"] = suggested
+    payload["install_command"] = f"ai-agent install {' '.join(suggested)}" if suggested else None
+    return payload
+
+
+def detected_agent_bridge_targets(root: Path, targets: list[str] | None = None) -> list[str]:
+    payload = agent_bridge_detection_payload(root, targets)
+    return list(payload.get("install_targets", []))
+
+
+def agent_bridge_parent_is_signal(path: Path, root: Path) -> bool:
+    if path.parent == root:
+        return False
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return True
+    parent_parts = relative.parts[:-1]
+    if parent_parts in {(".github",)}:
+        return False
+    return bool(parent_parts)
+
+
+def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> None:
+    payload = agent_bridge_detection_payload(root, targets)
     if as_json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return
     print(f"Agent bridge detection for {root}")
+    detected = payload["detected"]
+    ready = payload["ready"]
     if detected:
         print("Existing instruction files:")
         for item in detected:
@@ -2575,7 +2603,7 @@ def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> 
         for item in ready:
             dirs = ", ".join(str(Path(file["relative"]).parent).replace("\\", "/") for file in item["files"])
             print(f"  {item['target']}: {dirs}")
-    suggested = dedupe_preserve_order(payload["install_detected"] + payload["install_ready"])
+    suggested = list(payload.get("install_targets", []))
     if suggested:
         label = "detected/ready" if payload["install_detected"] and payload["install_ready"] else ("detected" if payload["install_detected"] else "ready")
         print(f"Install bridge for {label} targets: ai-agent install {' '.join(suggested)}")
@@ -2672,6 +2700,9 @@ def remove_marked_block(path: Path, dry_run: bool) -> str:
 def cmd_agent(args: argparse.Namespace) -> None:
     root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
 
+    if getattr(args, "detected", False) and args.action not in {"install", "remove", "paths"}:
+        raise SystemExit("--detected is only supported with agent install, agent remove, or agent paths")
+
     if args.action in {"targets", "detect"}:
         values = getattr(args, "targets", [])
         targets = agent_bridge_targets(values, getattr(args, "all", False)) if values or getattr(args, "all", False) else None
@@ -2681,7 +2712,15 @@ def cmd_agent(args: argparse.Namespace) -> None:
             print_agent_detect(root, targets, getattr(args, "json", False))
         return
 
-    targets = agent_bridge_targets(getattr(args, "targets", []), getattr(args, "all", False))
+    if getattr(args, "detected", False):
+        if getattr(args, "targets", []) or getattr(args, "all", False):
+            raise SystemExit("--detected cannot be combined with explicit targets or --all")
+        targets = detected_agent_bridge_targets(root)
+        if not targets:
+            raise SystemExit("No detected or ready agent bridge targets found. Run ai-agent detect, ai-agent install codex claude opencode, or ai-agent install all.")
+        print(f"Using detected agent bridge targets: {' '.join(targets)}")
+    else:
+        targets = agent_bridge_targets(getattr(args, "targets", []), getattr(args, "all", False))
 
     if args.action in {"prompt", "instructions"}:
         print(agent_bridge_text("prompt" if args.action == "prompt" else "full").rstrip())
@@ -5067,6 +5106,7 @@ def build_parser() -> argparse.ArgumentParser:
     agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
     agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
     agent_parser.add_argument("--file", action="append", default=[], help="Extra project instruction/rules file to update. Repeat as needed.")
+    agent_parser.add_argument("--detected", action="store_true", help="For install/remove/paths, use targets discovered by agent detect instead of installing every target.")
     agent_parser.add_argument("--dry-run", action="store_true")
     agent_parser.add_argument("--json", action="store_true")
     agent_parser.set_defaults(func=cmd_agent)
