@@ -62,6 +62,10 @@ function ai-adapter {
   py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" adapter @args
 }
 
+function ai-lite {
+  py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" lite @args
+}
+
 function ai-session {
   py -3.12 "$env:USERPROFILE\.codex\skills\cli-model-switcher\scripts\cli_model_switcher.py" session @args
 }
@@ -121,6 +125,8 @@ ai-recipe list
 ai-recipe install opencode-openrouter --use
 ai-use code-fast
 ai-adapter opencode opencode-openrouter
+ai-lite
+ai-lite --dry-run
 ai-session start claude --backend wt
 ai-session list
 ai-handoff claude "Review the current Codex work and look for regressions."
@@ -171,6 +177,8 @@ ai-recipe list
 ai-recipe install opencode-openrouter --use
 ai-use code-fast
 ai-adapter opencode opencode-openrouter
+ai-lite
+ai-lite --dry-run
 ai-session start claude --backend print
 ai-session list
 ai-handoff claude "Review the current Codex work." --no-start
@@ -230,6 +238,10 @@ ai-recipe() {
 
 ai-adapter() {
   python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" adapter "$@"
+}
+
+ai-lite() {
+  python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" lite "$@"
 }
 
 ai-session() {

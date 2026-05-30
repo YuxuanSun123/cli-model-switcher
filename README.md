@@ -17,6 +17,7 @@ Ayatori Nexus is the codename for CLI Model Switcher: a local profile switcher f
 - Share memory across agents through a neutral `AI_CLI_MEMORY` context file.
 - Manage API presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, Groq, Mistral, xAI, Together, Fireworks, DashScope, Moonshot, Zhipu, SiliconFlow, Volcengine, Cerebras, Perplexity, Novita, Azure OpenAI, and custom OpenAI-compatible endpoints.
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
+- Offer `ai-lite` as a minimal one-command path for users who only want project agent-bridge setup.
 - Open several agents in one terminal workspace with `ai-workspace`, then switch between Codex, Claude, OpenCode, or recipes from that workspace.
 - Start and track AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printable fallback commands.
 - Audit state and memory for direct-looking secrets before export or migration.
@@ -76,6 +77,7 @@ After setup, reload your shell profile if the installer asks you to. Then:
 ayatori about
 ayatori status
 ai-list
+ai-lite
 ai-use code-fast
 ai-status
 ai-recall
@@ -103,6 +105,19 @@ Built-in recipes:
 - `local-ollama`
 - `local-lmstudio`
 - `custom-gateway`
+
+## Ayatori Lite
+
+Use `ai-lite` when you want the simple version: one command that installs the best project agent bridge files and skips profile, recipe, workspace, and API setup.
+
+```powershell
+ai-lite
+ai-lite --dry-run
+ai-lite zed kilo
+ai-lite --json
+```
+
+With no targets, `ai-lite` scans the current project and installs the shortest matching bridge. If it cannot detect an agent-specific setup, it falls back to `codex claude opencode`.
 
 ## Terminal Workspaces
 
@@ -148,6 +163,8 @@ ai-workspace start codex claude --backend print
 Once you are inside Codex, Claude, or OpenCode, your input belongs to that agent. Install the agent bridge so those agents know that `/switch claude` should run the terminal switch command instead of answering in chat:
 
 ```powershell
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -249,6 +266,8 @@ ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
 ai-wgo claude
 ai-workspace add gemini
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -291,7 +310,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
+On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
 
 Keep the shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
@@ -308,6 +327,7 @@ Generated helpers include:
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-lite`
 - `ai-agent`
 - `ai-session`
 - `ai-workspace`

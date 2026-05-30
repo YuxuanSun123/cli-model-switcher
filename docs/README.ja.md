@@ -66,6 +66,7 @@ sh install.sh --dry-run
 
 ```powershell
 ai-list
+ai-lite
 ai-use code-fast
 ai-status
 ai-recall
@@ -138,6 +139,8 @@ ai-workspace start codex claude --backend print
 Codex、Claude、OpenCode に入った後の入力は、そのエージェントが受け取ります。Agent Bridge をインストールすると、`/switch claude` を通常の会話ではなくターミナル切り替えコマンドとして扱わせることができます:
 
 ```powershell
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -207,6 +210,8 @@ ai-workspace up
 ai-wup
 ai-workspace switch claude
 ai-wgo claude
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install continue goose kiro
 ai-agent recommend

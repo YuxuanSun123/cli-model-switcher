@@ -279,6 +279,7 @@ POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ai-strategy": ["strategy"],
     "ai-recipe": ["recipe"],
     "ai-adapter": ["adapter"],
+    "ai-lite": ["lite"],
     "ai-agent": ["agent"],
     "ai-session": ["session"],
     "ai-workspace": ["workspace"],
@@ -1949,10 +1950,11 @@ def about_payload() -> dict[str, Any]:
         "home": str(APP_DIR),
         "state": str(STATE_PATH),
         "script": str(SCRIPT_PATH),
-        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about"],
+        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-lite"],
         "common_commands": [
             "ayatori about",
             "ayatori status",
+            "ai-lite",
             "ayatori workspace up",
             "ayatori agent prompt",
             "ai-use codex",
@@ -3142,6 +3144,85 @@ def remove_marked_block(path: Path, dry_run: bool) -> str:
         return "removed"
     path.write_text(updated, encoding="utf-8")
     return "removed"
+
+
+def marked_block_action(path: Path) -> str:
+    if not path.exists():
+        return "created"
+    existing = path.read_text(encoding="utf-8")
+    if AGENT_BRIDGE_MARKER_START in existing and AGENT_BRIDGE_MARKER_END in existing:
+        return "updated"
+    return "added"
+
+
+def dry_run_action_label(action: str) -> str:
+    return {
+        "created": "would-create",
+        "updated": "would-update",
+        "added": "would-add",
+        "removed": "would-remove",
+        "missing": "would-skip-missing",
+        "unchanged": "would-leave-unchanged",
+    }.get(action, f"would-{action}")
+
+
+def cmd_lite(args: argparse.Namespace) -> None:
+    root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
+    recommendation = agent_recommendation_payload(root)
+    explicit_targets = bool(getattr(args, "targets", []))
+    if explicit_targets:
+        targets = agent_bridge_targets(args.targets, False)
+        mode = "explicit"
+    else:
+        targets = list(recommendation.get("install_targets") or recommendation.get("fallback_targets", []))
+        mode = "recommended" if recommendation.get("install_targets") else "fallback"
+
+    specs = agent_bridge_file_specs(targets, root, [])
+    block = agent_bridge_text("full")
+    actions: list[dict[str, Any]] = []
+    for spec in specs:
+        path = spec["path"]
+        if args.json and args.dry_run:
+            action = dry_run_action_label(marked_block_action(path))
+        else:
+            action = upsert_marked_block(path, block, args.dry_run, str(spec.get("prefix", "")))
+        actions.append({
+            "action": action,
+            "path": str(path),
+            "relative": display_relative_path(path, root),
+            "targets": list(spec.get("targets", [])),
+        })
+
+    payload = {
+        "root": str(root),
+        "mode": mode,
+        "targets": targets,
+        "dry_run": bool(args.dry_run),
+        "actions": actions,
+        "recommendations": recommendation.get("recommendations", []),
+        "install_command": "ai-lite" if not explicit_targets else f"ai-lite {' '.join(targets)}",
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    print("Ayatori Lite: one-command agent bridge setup")
+    print(f"Project: {root}")
+    if mode == "recommended":
+        print("Mode: recommended from project files")
+    elif mode == "fallback":
+        print("Mode: fallback defaults; no project-specific agent files were detected")
+    else:
+        print("Mode: explicit targets")
+    print(f"Targets: {' '.join(targets)}")
+    for item in actions:
+        labels = ",".join(item["targets"])
+        print(f"{item['action']}: {item['relative']} [{labels}]")
+    if args.dry_run:
+        print("Dry run only; no files were changed.")
+    else:
+        print("Done. New agent sessions should read these project instruction files.")
+        print("Already running? Paste once: ai-agent prompt")
 
 
 def cmd_agent(args: argparse.Namespace) -> None:
@@ -4353,6 +4434,10 @@ function ai-adapter {{
   Invoke-AiCliSwitcher adapter @args
 }}
 
+function ai-lite {{
+  Invoke-AiCliSwitcher lite @args
+}}
+
 function ai-agent {{
   Invoke-AiCliSwitcher agent @args
 }}
@@ -4521,6 +4606,10 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} adapter %*
 """,
+        "ai-lite.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} lite %*
+""",
         "ai-agent.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} agent %*
@@ -4668,6 +4757,7 @@ ai-model() {{ _ai_cli_switcher model "$@"; }}
 ai-strategy() {{ _ai_cli_switcher strategy "$@"; }}
 ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
+ai-lite() {{ _ai_cli_switcher lite "$@"; }}
 ai-agent() {{ _ai_cli_switcher agent "$@"; }}
 ai-session() {{ _ai_cli_switcher session "$@"; }}
 ai-workspace() {{ _ai_cli_switcher workspace "$@"; }}
@@ -4741,6 +4831,7 @@ function ai-model; _ai_cli_switcher model $argv; end
 function ai-strategy; _ai_cli_switcher strategy $argv; end
 function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
+function ai-lite; _ai_cli_switcher lite $argv; end
 function ai-agent; _ai_cli_switcher agent $argv; end
 function ai-session; _ai_cli_switcher session $argv; end
 function ai-workspace; _ai_cli_switcher workspace $argv; end
@@ -5488,6 +5579,13 @@ def build_parser() -> argparse.ArgumentParser:
     about_parser = sub.add_parser("about", help="Show Ayatori Nexus project info and common entrypoints.")
     about_parser.add_argument("--json", action="store_true")
     about_parser.set_defaults(func=cmd_about)
+
+    lite_parser = sub.add_parser("lite", help="One-command project agent bridge setup for simple use.")
+    lite_parser.add_argument("targets", nargs="*", help="Optional agent targets. Defaults to project recommendations, then codex claude opencode.")
+    lite_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
+    lite_parser.add_argument("--dry-run", action="store_true")
+    lite_parser.add_argument("--json", action="store_true")
+    lite_parser.set_defaults(func=cmd_lite)
 
     list_parser = sub.add_parser("list", help="List profiles.")
     list_parser.set_defaults(func=cmd_list)

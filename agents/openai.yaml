@@ -1,4 +1,4 @@
 interface:
   display_name: "CLI Model Switcher"
-  short_description: "Switch CLI AI profiles, rank adapter support, and recommend agent-platform bridge installs."
-  default_prompt: "Use $cli-model-switcher to set up CLI AI model profiles with setup wizard, profile recipes, API tests, model strategies, adapters, shared memory, terminal sessions, handoffs, support-ranked agent-platform bridges, project-aware agent recommendations for Amp, Devin, Junie, Zed, Kilo, GitLab Duo, Firebase Studio, Android Studio Gemini, OpenHands, Warp, Trae, OpenClaw, doctor repairs, secret audits, and portable imports/exports."
+  short_description: "Switch CLI AI profiles, run lite bridge setup, and recommend agent-platform installs."
+  default_prompt: "Use $cli-model-switcher to set up CLI AI model profiles with setup wizard, Ayatori Lite one-command bridge setup, profile recipes, API tests, model strategies, adapters, shared memory, terminal sessions, handoffs, support-ranked agent-platform bridges, project-aware agent recommendations for Amp, Devin, Junie, Zed, Kilo, GitLab Duo, Firebase Studio, Android Studio Gemini, OpenHands, Warp, Trae, OpenClaw, doctor repairs, secret audits, and portable imports/exports."

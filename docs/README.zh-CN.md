@@ -68,6 +68,7 @@ sh install.sh --dry-run
 
 ```powershell
 ai-list
+ai-lite
 ai-use code-fast
 ai-status
 ai-recall
@@ -140,6 +141,8 @@ ai-workspace start codex claude --backend print
 进入 Codex、Claude 或 OpenCode 以后，输入会被当前 agent 接管。安装 agent bridge 后，这些 agent 会知道 `/switch claude` 是终端切换指令，而不是普通聊天：
 
 ```powershell
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -233,6 +236,8 @@ ai-workspace start codex claude opencode-openrouter --backend tmux --attach
 ai-workspace switch claude
 ai-wgo claude
 ai-workspace add gemini
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -290,6 +295,7 @@ python3 scripts/cli_model_switcher.py install-bin
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-lite`
 - `ai-agent`
 - `ai-session`
 - `ai-workspace`

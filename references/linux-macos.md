@@ -70,6 +70,8 @@ python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" i
 
 ```bash
 ai-list
+ai-lite
+ai-lite --dry-run
 ai-status
 ai-profile local --command opencode --model local --alias l --use
 ai-profile deepseek --command opencode --api deepseek --model deepseek-chat --alias ds --use
@@ -85,6 +87,7 @@ ai-use code-fast
 ai-workspace targets set codex claude opencode-openrouter
 ai-workspace up
 ai-wgo claude
+ai-lite
 ai-agent install all
 ai-agent prompt
 ai-session start claude --backend tmux
@@ -142,7 +145,7 @@ Project-local files:
 - macOS default shell is usually zsh; use `~/.zshrc` for interactive terminals.
 - Linux bash usually uses `~/.bashrc` for interactive terminals.
 - macOS bash may use `~/.bash_profile`; pass `--profile` if needed.
-- Agent shell tools often run non-interactive shells. `install-unix` adds `~/.local/bin` to interactive helpers, but some agents may need it in the broader login environment so commands such as `ai-agent`, `ai-workspace`, `ai-wup`, and `ai-wgo` work even when Bash/Zsh/fish functions are not loaded.
+- Agent shell tools often run non-interactive shells. `install-unix` adds `~/.local/bin` to interactive helpers, but some agents may need it in the broader login environment so commands such as `ai-lite`, `ai-agent`, `ai-workspace`, `ai-wup`, and `ai-wgo` work even when Bash/Zsh/fish functions are not loaded.
 - Bash/Zsh PATH example: `export PATH="$HOME/.local/bin:$PATH"`.
 - fish PATH example: `fish_add_path ~/.local/bin`.
 - Keep the `ai-use` and `ai-select` shell functions for current-shell environment switching; executable shims can run commands but cannot mutate their parent shell.

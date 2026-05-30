@@ -66,6 +66,7 @@ Dopo l'installazione, ricarica il profilo shell se richiesto:
 
 ```powershell
 ai-list
+ai-lite
 ai-use code-fast
 ai-status
 ai-recall
@@ -138,6 +139,8 @@ ai-workspace start codex claude --backend print
 Una volta dentro Codex, Claude o OpenCode, l'input appartiene a quell'agent. Installa il bridge per far interpretare `/switch claude` come comando di cambio terminale:
 
 ```powershell
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -207,6 +210,8 @@ ai-workspace up
 ai-wup
 ai-workspace switch claude
 ai-wgo claude
+ai-lite
+ai-lite --dry-run
 ai-agent install codex claude opencode
 ai-agent install continue goose kiro
 ai-agent recommend

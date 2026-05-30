@@ -203,9 +203,10 @@ Installed CLI Model Switcher.
 Open a new terminal or reload the shell profile printed above, then run:
   ayatori about
   ayatori status
+  ai-lite --dry-run
   ai-status
   ai-doctor --fix
 
-In each project where you want agent-side switching, run:
-  ai-agent install all
+In each project where you want simple agent-side switching, run:
+  ai-lite
 EOF

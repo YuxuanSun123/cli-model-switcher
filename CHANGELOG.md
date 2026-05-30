@@ -8,6 +8,7 @@ This project currently follows a lightweight release format while it is still a 
 
 ### Added
 
+- `lite` / `ai-lite`, a simplified one-command project agent bridge setup that auto-recommends targets and falls back to Codex, Claude, and OpenCode.
 - German, Japanese, French, and Italian README pages, plus expanded language navigation.
 - `about` command and `ayatori` / `ayatori-nexus` shell entrypoints for the Ayatori Nexus project codename.
 - `agent recommend` for project-aware bridge install suggestions, plus platform support levels in `agent platforms`.
