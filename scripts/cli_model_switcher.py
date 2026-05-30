@@ -40,19 +40,24 @@ AGENT_BRIDGE_TARGET_FILES: dict[str, list[str]] = {
     "cline": [".clinerules/ai-cli-switcher.md"],
     "codex": ["AGENTS.md"],
     "claude": ["CLAUDE.md"],
+    "continue": [".continue/rules/ai-cli-switcher.md"],
     "copilot": [".github/copilot-instructions.md"],
     "cursor": [".cursor/rules/ai-cli-switcher.mdc"],
+    "goose": [".goosehints"],
     "opencode": ["AGENTS.md"],
     "gemini": ["GEMINI.md"],
     "generic": ["AGENTS.md"],
+    "kiro": [".kiro/steering/ai-cli-switcher.md"],
     "qwen": ["QWEN.md"],
     "roo": [".roo/rules/ai-cli-switcher.md"],
     "windsurf": ["AGENTS.md", ".windsurf/rules/ai-cli-switcher.md"],
 }
 AGENT_BRIDGE_ALIASES = {
     "cascade": "windsurf",
+    "continue-dev": "continue",
     "github": "copilot",
     "github-copilot": "copilot",
+    "kiro-cli": "kiro",
     "qwen-code": "qwen",
     "roo-code": "roo",
     "vscode": "copilot",
@@ -2450,6 +2455,8 @@ def agent_bridge_prefix(path: Path) -> str:
     normalized = path.as_posix()
     if normalized.endswith(".cursor/rules/ai-cli-switcher.mdc"):
         return "---\ndescription: AI CLI Switcher bridge for switching terminal agents\nalwaysApply: true\n---\n\n"
+    if normalized.endswith(".kiro/steering/ai-cli-switcher.md"):
+        return "---\ninclusion: always\n---\n\n"
     if normalized.endswith(".windsurf/rules/ai-cli-switcher.md"):
         return "---\ntrigger: always_on\ndescription: AI CLI Switcher bridge for switching terminal agents\n---\n\n"
     return ""
@@ -2477,6 +2484,104 @@ def agent_bridge_file_specs(targets: list[str], root: Path, extra_files: list[st
         specs.append(spec)
         seen[path] = spec
     return specs
+
+
+def display_relative_path(path: Path, root: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def agent_bridge_target_info(root: Path, targets: list[str] | None = None) -> list[dict[str, Any]]:
+    selected = targets or sorted(AGENT_BRIDGE_TARGET_FILES)
+    reverse_aliases: dict[str, list[str]] = {}
+    for alias, target in AGENT_BRIDGE_ALIASES.items():
+        reverse_aliases.setdefault(target, []).append(alias)
+    payload: list[dict[str, Any]] = []
+    for target in selected:
+        files: list[dict[str, Any]] = []
+        for name in AGENT_BRIDGE_TARGET_FILES[target]:
+            path = root / name
+            files.append({
+                "path": str(path),
+                "relative": display_relative_path(path, root),
+                "exists": path.exists(),
+                "parent_exists": path.parent.exists(),
+            })
+        payload.append({
+            "target": target,
+            "aliases": sorted(reverse_aliases.get(target, [])),
+            "files": files,
+        })
+    return payload
+
+
+def print_agent_targets(root: Path, targets: list[str] | None, as_json: bool) -> None:
+    info = agent_bridge_target_info(root, targets)
+    payload = {
+        "root": str(root),
+        "targets": info,
+        "aliases": dict(sorted(AGENT_BRIDGE_ALIASES.items())),
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print("Supported agent bridge targets:")
+    for item in info:
+        aliases = f" (aliases: {', '.join(item['aliases'])})" if item["aliases"] else ""
+        files = ", ".join(file["relative"] for file in item["files"])
+        print(f"  {item['target']}{aliases}: {files}")
+    if AGENT_BRIDGE_ALIASES:
+        print("Aliases:")
+        for alias, target in sorted(AGENT_BRIDGE_ALIASES.items()):
+            print(f"  {alias} -> {target}")
+
+
+def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> None:
+    info = agent_bridge_target_info(root, targets)
+    detected: list[dict[str, Any]] = []
+    ready: list[dict[str, Any]] = []
+    for item in info:
+        existing = [file for file in item["files"] if file["exists"]]
+        parent_ready = [
+            file for file in item["files"]
+            if not file["exists"] and file["parent_exists"] and Path(file["path"]).parent != root
+        ]
+        if existing:
+            detected.append({"target": item["target"], "files": existing})
+        elif parent_ready:
+            ready.append({"target": item["target"], "files": parent_ready})
+    payload = {
+        "root": str(root),
+        "detected": detected,
+        "ready": ready,
+        "install_detected": [item["target"] for item in detected],
+        "install_ready": [item["target"] for item in ready],
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print(f"Agent bridge detection for {root}")
+    if detected:
+        print("Existing instruction files:")
+        for item in detected:
+            files = ", ".join(file["relative"] for file in item["files"])
+            print(f"  {item['target']}: {files}")
+    else:
+        print("No existing supported instruction files found.")
+    if ready:
+        print("Rule directories already present:")
+        for item in ready:
+            dirs = ", ".join(str(Path(file["relative"]).parent).replace("\\", "/") for file in item["files"])
+            print(f"  {item['target']}: {dirs}")
+    suggested = dedupe_preserve_order(payload["install_detected"] + payload["install_ready"])
+    if suggested:
+        label = "detected/ready" if payload["install_detected"] and payload["install_ready"] else ("detected" if payload["install_detected"] else "ready")
+        print(f"Install bridge for {label} targets: ai-agent install {' '.join(suggested)}")
+    else:
+        print("Install common bridges: ai-agent install codex claude opencode")
+        print("Install every known bridge: ai-agent install all")
 
 
 def agent_bridge_commands() -> list[tuple[str, str]]:
@@ -2566,6 +2671,16 @@ def remove_marked_block(path: Path, dry_run: bool) -> str:
 
 def cmd_agent(args: argparse.Namespace) -> None:
     root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
+
+    if args.action in {"targets", "detect"}:
+        values = getattr(args, "targets", [])
+        targets = agent_bridge_targets(values, getattr(args, "all", False)) if values or getattr(args, "all", False) else None
+        if args.action == "targets":
+            print_agent_targets(root, targets, getattr(args, "json", False))
+        else:
+            print_agent_detect(root, targets, getattr(args, "json", False))
+        return
+
     targets = agent_bridge_targets(getattr(args, "targets", []), getattr(args, "all", False))
 
     if args.action in {"prompt", "instructions"}:
@@ -4947,12 +5062,13 @@ def build_parser() -> argparse.ArgumentParser:
     api_apply_parser.set_defaults(func=cmd_api)
 
     agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, and similar CLIs.")
-    agent_parser.add_argument("action", choices=["install", "remove", "paths", "prompt", "instructions"])
-    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, gemini, qwen, copilot, cursor, windsurf, aider, cline, roo, generic, or all. Defaults to all.")
+    agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "prompt", "instructions"])
+    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, gemini, qwen, copilot, cursor, windsurf, aider, cline, roo, continue, goose, kiro, generic, or all. Defaults to all.")
     agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
     agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
     agent_parser.add_argument("--file", action="append", default=[], help="Extra project instruction/rules file to update. Repeat as needed.")
     agent_parser.add_argument("--dry-run", action="store_true")
+    agent_parser.add_argument("--json", action="store_true")
     agent_parser.set_defaults(func=cmd_agent)
 
     adapter_parser = sub.add_parser("adapter", help="Generate CLI-specific config snippets for a profile.")

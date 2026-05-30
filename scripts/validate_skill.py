@@ -89,6 +89,11 @@ def main() -> int:
         "Ayatori Nexus",
         "ayatori",
         "ai-about",
+        "ai-agent targets",
+        "ai-agent detect",
+        "continue",
+        "goose",
+        "kiro",
         "README.de.md",
         "README.fr.md",
         "README.it.md",
@@ -116,7 +121,7 @@ def main() -> int:
                 fail(f"{relative} is missing installer next-step hint: {expected}")
 
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
-    for command in ["about", "ayatori", "install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "targets", "detect", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 

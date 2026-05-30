@@ -140,6 +140,9 @@ Una volta dentro Codex, Claude o OpenCode, l'input appartiene a quell'agent. Ins
 ```powershell
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
+ai-agent install continue goose kiro
+ai-agent targets
+ai-agent detect
 ai-agent install --file .my-agent-rules.md
 ai-agent prompt
 ```
@@ -196,6 +199,9 @@ ai-wup
 ai-workspace switch claude
 ai-wgo claude
 ai-agent install codex claude opencode
+ai-agent install continue goose kiro
+ai-agent targets
+ai-agent detect
 ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."

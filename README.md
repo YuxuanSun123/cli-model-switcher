@@ -150,6 +150,9 @@ Once you are inside Codex, Claude, or OpenCode, your input belongs to that agent
 ```powershell
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
+ai-agent install continue goose kiro
+ai-agent targets
+ai-agent detect
 ai-agent install --file .my-agent-rules.md
 ai-agent prompt
 ```
@@ -168,8 +171,11 @@ Built-in agent bridge targets include:
 
 - `codex`, `claude`, `opencode`, `gemini`, `qwen`
 - `copilot` / `vscode`, `cursor`, `windsurf` / `cascade`
+- `continue` / `continue-dev`, `goose`, `kiro` / `kiro-cli`
 - `aider`, `cline`, `roo`
 - `generic` for `AGENTS.md`, plus `--file PATH` for any custom rule file
+
+Use `ai-agent targets` to list every supported target and file path, or `ai-agent detect` to inspect the current project for existing agent rule files before installing bridges.
 
 ## Sessions and Handoffs
 
@@ -229,6 +235,9 @@ ai-wgo claude
 ai-workspace add gemini
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
+ai-agent install continue goose kiro
+ai-agent targets
+ai-agent detect
 ai-agent prompt
 ai-session start claude
 ai-handoff claude "Review this task from another angle."

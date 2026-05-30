@@ -10,6 +10,7 @@ This project currently follows a lightweight release format while it is still a 
 
 - German, Japanese, French, and Italian README pages, plus expanded language navigation.
 - `about` command and `ayatori` / `ayatori-nexus` shell entrypoints for the Ayatori Nexus project codename.
+- `agent targets` and `agent detect` commands, plus Continue, Goose, and Kiro agent bridge targets.
 
 ## [0.3.0] - 2026-05-29
 
