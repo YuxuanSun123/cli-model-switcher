@@ -92,7 +92,20 @@ def main() -> int:
         "ai-agent targets",
         "ai-agent detect",
         "ai-agent platforms",
+        "ai-agent platforms amp devin junie zed kilo",
+        "ai-agent install amp devin junie zed kilo",
         "ai-agent install --detected",
+        "amp",
+        "devin",
+        "junie",
+        "zed",
+        "kilo",
+        "gitlab-duo",
+        "firebase-studio",
+        "android-studio-gemini",
+        "openhands",
+        "warp",
+        "trae",
         "openclaw",
         "~/.openclaw/workspace",
         "continue",
@@ -117,6 +130,9 @@ def main() -> int:
                 fail(f"{relative} is missing language navigation entry: {expected}")
         if "简体中文" not in localized and "簡體中文" not in localized:
             fail(f"{relative} is missing Simplified Chinese language navigation")
+        for expected in ["ai-agent platforms amp devin junie zed kilo", "ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae"]:
+            if expected not in localized:
+                fail(f"{relative} is missing expanded agent platform command: {expected}")
 
     for relative in ["install.ps1", "install.sh"]:
         installer = (root / relative).read_text(encoding="utf-8")
@@ -125,7 +141,7 @@ def main() -> int:
                 fail(f"{relative} is missing installer next-step hint: {expected}")
 
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
-    for command in ["about", "ayatori", "--detected", "targets", "detect", "platforms", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "--detected", "targets", "detect", "platforms", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 

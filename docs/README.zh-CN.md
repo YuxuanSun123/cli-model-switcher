@@ -143,6 +143,10 @@ ai-workspace start codex claude --backend print
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms amp devin junie zed kilo
+ai-agent platforms gitlab-duo firebase-studio android-studio-gemini openhands warp trae
+ai-agent install amp devin junie zed kilo
+ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae
 ai-agent platforms openclaw
 ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets
@@ -167,6 +171,9 @@ handoff claude review the current changes
 - `codex`、`claude`、`opencode`、`gemini`、`qwen`
 - `copilot` / `vscode`、`cursor`、`windsurf` / `cascade`
 - `continue` / `continue-dev`、`goose`、`kiro` / `kiro-cli`
+- `amp` / `sourcegraph-amp`、`devin` / `cognition`、`junie` / `jetbrains-junie`
+- `zed`、`kilo` / `kilocode`、`gitlab-duo` / `duo`、`firebase-studio` / `project-idx`
+- `android-studio-gemini`、`openhands` / `open-hands`、`warp`、`trae` / `traeide`
 - `openclaw` / `claw` / `open-claw`
 - `aider`、`cline`、`roo`
 - `generic` 写入 `AGENTS.md`，也可以用 `--file PATH` 写入任意自定义规则文件
@@ -225,6 +232,9 @@ ai-workspace add gemini
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent platforms amp devin junie zed kilo
+ai-agent install amp devin junie zed kilo
+ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae
 ai-agent platforms openclaw
 ai-agent install openclaw --dir ~/.openclaw/workspace
 ai-agent targets

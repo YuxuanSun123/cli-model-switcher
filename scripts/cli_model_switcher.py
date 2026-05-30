@@ -37,35 +37,142 @@ AGENT_BRIDGE_MARKER_START = "<!-- >>> ai-cli-switcher agent-bridge >>> -->"
 AGENT_BRIDGE_MARKER_END = "<!-- <<< ai-cli-switcher agent-bridge <<< -->"
 AGENT_BRIDGE_TARGET_FILES: dict[str, list[str]] = {
     "aider": ["CONVENTIONS.md"],
+    "amp": ["AGENTS.md"],
+    "android-studio-gemini": ["AGENTS.md"],
     "cline": [".clinerules/ai-cli-switcher.md"],
     "codex": ["AGENTS.md"],
     "claude": ["CLAUDE.md"],
     "continue": [".continue/rules/ai-cli-switcher.md"],
     "copilot": [".github/copilot-instructions.md"],
     "cursor": [".cursor/rules/ai-cli-switcher.mdc"],
+    "devin": ["AGENTS.md"],
+    "devin-review": ["REVIEW.md"],
+    "firebase-studio": [".idx/airules.md"],
+    "gitlab-duo": [".gitlab/duo/chat-rules.md"],
     "goose": [".goosehints"],
+    "junie": [".junie/AGENTS.md"],
+    "kilo": ["AGENTS.md", "CONTEXT.md", ".kilo/rules/ai-cli-switcher.md"],
     "openclaw": ["AGENTS.md", "TOOLS.md"],
+    "openhands": ["AGENTS.md", ".openhands/microagents/repo.md"],
     "opencode": ["AGENTS.md"],
     "gemini": ["GEMINI.md"],
     "generic": ["AGENTS.md"],
     "kiro": [".kiro/steering/ai-cli-switcher.md"],
     "qwen": ["QWEN.md"],
     "roo": [".roo/rules/ai-cli-switcher.md"],
+    "trae": [".trae/project_rules.md", ".trae/rules/project_rules.md"],
+    "warp": ["WARP.md"],
     "windsurf": ["AGENTS.md", ".windsurf/rules/ai-cli-switcher.md"],
+    "zed": [".rules"],
 }
 AGENT_BRIDGE_ALIASES = {
+    "ampcode": "amp",
+    "android-gemini": "android-studio-gemini",
+    "android-studio": "android-studio-gemini",
     "cascade": "windsurf",
     "continue-dev": "continue",
+    "cognition": "devin",
+    "devin-cli": "devin",
+    "duo": "gitlab-duo",
+    "firebase": "firebase-studio",
+    "gitlab": "gitlab-duo",
     "github": "copilot",
     "github-copilot": "copilot",
+    "idx": "firebase-studio",
+    "jetbrains": "junie",
+    "jetbrains-junie": "junie",
     "kiro-cli": "kiro",
+    "kilocode": "kilo",
+    "kilo-code": "kilo",
     "claw": "openclaw",
+    "open-hands": "openhands",
     "open-claw": "openclaw",
+    "opendevin": "openhands",
+    "project-idx": "firebase-studio",
     "qwen-code": "qwen",
     "roo-code": "roo",
+    "sourcegraph-amp": "amp",
+    "trae-ai": "trae",
+    "traeide": "trae",
     "vscode": "copilot",
+    "warp-terminal": "warp",
+    "zed-agent": "zed",
 }
 AGENT_PLATFORM_SPECS: dict[str, dict[str, Any]] = {
+    "amp": {
+        "label": "Sourcegraph Amp",
+        "targets": ["amp"],
+        "docs_url": "https://ampcode.com/manual",
+        "notes": [
+            "Amp automatically includes AGENTS.md files in the current directory, parent directories, and relevant subtrees.",
+            "Amp also supports AGENT.md, .agents/skills/, and .claude/skills/ for compatibility.",
+        ],
+    },
+    "android-studio-gemini": {
+        "label": "Gemini in Android Studio",
+        "targets": ["android-studio-gemini"],
+        "docs_url": "https://developer.android.com/studio/gemini/agent-files?hl=en",
+        "notes": [
+            "Current Android Studio Gemini agent files use AGENTS.md.",
+            "Older Android Studio Narwhal 3 builds used AGENT.md instead of AGENTS.md.",
+        ],
+    },
+    "devin": {
+        "label": "Devin for Terminal",
+        "targets": ["devin"],
+        "docs_url": "https://cli.devin.ai/docs/extensibility/rules",
+        "notes": [
+            "Devin for Terminal recommends AGENTS.md for project rules.",
+            "AGENT.md and CLAUDE.md are also supported by Devin for Terminal.",
+            "Use the devin-review target when you want REVIEW.md guidance for Devin Review.",
+        ],
+    },
+    "devin-review": {
+        "label": "Devin Review",
+        "targets": ["devin-review"],
+        "docs_url": "https://docs.devin.ai/work-with-devin",
+        "notes": [
+            "Devin Review uses REVIEW.md for review-specific instructions.",
+            "It also respects AGENTS.md, CLAUDE.md, Cursor, Windsurf, and other instruction files.",
+        ],
+    },
+    "firebase-studio": {
+        "label": "Firebase Studio",
+        "targets": ["firebase-studio"],
+        "docs_url": "https://firebase.google.com/docs/studio/set-up-gemini",
+        "notes": [
+            "Gemini in Firebase chat prioritizes .idx/airules.md in Firebase Studio workspaces.",
+            "Gemini CLI still uses GEMINI.md; create both if you need chat and CLI separation.",
+        ],
+    },
+    "gitlab-duo": {
+        "label": "GitLab Duo",
+        "targets": ["gitlab-duo"],
+        "docs_url": "https://docs.gitlab.com/user/duo_agent_platform/customize/custom_rules/",
+        "notes": [
+            "GitLab Duo project-level custom rules live at .gitlab/duo/chat-rules.md.",
+            "Start a new Duo conversation after changing custom rules.",
+        ],
+    },
+    "junie": {
+        "label": "JetBrains Junie",
+        "targets": ["junie"],
+        "docs_url": "https://www.jetbrains.com/help/ai-assistant/junie-agent.html",
+        "notes": [
+            "Current Junie guidelines prefer .junie/AGENTS.md.",
+            "Legacy Junie setups may use .junie/guidelines.md or a custom configured path.",
+            "Junie can also fall back to root AGENTS.md when no .junie guidance file is found.",
+        ],
+    },
+    "kilo": {
+        "label": "Kilo Code",
+        "targets": ["kilo"],
+        "docs_url": "https://kilo.ai/docs/customize/custom-instructions",
+        "notes": [
+            "Kilo automatically discovers AGENTS.md, CLAUDE.md, and CONTEXT.md.",
+            "Project rules can also be referenced from kilo.jsonc instructions and .kilo/rules/*.md.",
+        ],
+    },
     "openclaw": {
         "label": "OpenClaw",
         "targets": ["openclaw"],
@@ -78,6 +185,43 @@ AGENT_PLATFORM_SPECS: dict[str, dict[str, Any]] = {
             "OpenClaw loads AGENTS.md as operating instructions from its agent workspace.",
             "TOOLS.md is used for local tool conventions and is also loaded by OpenClaw sessions.",
             "Use --dir to target a non-default OpenClaw workspace.",
+        ],
+    },
+    "openhands": {
+        "label": "OpenHands",
+        "targets": ["openhands"],
+        "docs_url": "https://docs.openhands.dev/openhands/usage/customization/repository",
+        "notes": [
+            "OpenHands repository customization lives under .openhands/.",
+            "Repository microagents can use .openhands/microagents/repo.md.",
+            "OpenHands also supports AGENTS.md and repo-level .agents/skills/ in newer skill workflows.",
+        ],
+    },
+    "trae": {
+        "label": "Trae IDE",
+        "targets": ["trae"],
+        "docs_url": "https://traeide.com/docs",
+        "notes": [
+            "Trae rule paths vary across versions; this adapter writes both .trae/project_rules.md and .trae/rules/project_rules.md.",
+            "Use project rules for shared repository behavior and user rules for personal preferences.",
+        ],
+    },
+    "warp": {
+        "label": "Warp",
+        "targets": ["warp"],
+        "docs_url": "https://docs.warp.dev/features/warp-ai/rules",
+        "notes": [
+            "Warp project rules can live in WARP.md.",
+            "Warp also recognizes CLAUDE.md, AGENT.md, AGENTS.md, GEMINI.md, .cursorrules, .clinerules, and .windsurfrules.",
+        ],
+    },
+    "zed": {
+        "label": "Zed Agent Panel",
+        "targets": ["zed"],
+        "docs_url": "https://zed.dev/docs/ai/rules",
+        "notes": [
+            "Zed auto-includes a project-root .rules file in Agent Panel interactions.",
+            "Zed also recognizes .cursorrules, .windsurfrules, .clinerules, AGENT.md, AGENTS.md, CLAUDE.md, and GEMINI.md.",
         ],
     }
 }
@@ -2583,20 +2727,32 @@ def agent_platform_names(values: list[str] | None) -> list[str] | None:
 def agent_platform_label(name: str) -> str:
     labels = {
         "aider": "Aider",
+        "amp": "Sourcegraph Amp",
+        "android-studio-gemini": "Gemini in Android Studio",
         "claude": "Claude Code",
         "cline": "Cline",
         "codex": "Codex CLI",
         "continue": "Continue",
         "copilot": "GitHub Copilot / VS Code",
         "cursor": "Cursor",
+        "devin": "Devin for Terminal",
+        "devin-review": "Devin Review",
+        "firebase-studio": "Firebase Studio",
         "gemini": "Gemini CLI",
         "generic": "Generic AGENTS.md",
+        "gitlab-duo": "GitLab Duo",
         "goose": "Goose",
+        "junie": "JetBrains Junie",
         "kiro": "Kiro",
+        "kilo": "Kilo Code",
+        "openhands": "OpenHands",
         "opencode": "OpenCode",
         "qwen": "Qwen Code",
         "roo": "Roo Code",
+        "trae": "Trae IDE",
+        "warp": "Warp",
         "windsurf": "Windsurf / Cascade",
+        "zed": "Zed Agent Panel",
     }
     spec = AGENT_PLATFORM_SPECS.get(name, {})
     return str(spec.get("label") or labels.get(name) or name)
@@ -2690,7 +2846,7 @@ def print_agent_platforms(root: Path, names: list[str] | None, as_json: bool, re
         else:
             print(f"  {item['platform']}{aliases}: {item['label']} -> {files}")
     if not detailed:
-        print("Show details for one platform: ai-agent platforms openclaw")
+        print("Show details for one platform: ai-agent platforms amp")
 
 
 def agent_bridge_detection_payload(root: Path, targets: list[str] | None = None) -> dict[str, Any]:
@@ -5261,9 +5417,9 @@ def build_parser() -> argparse.ArgumentParser:
     api_apply_parser.add_argument("--allow-secret-env", action="store_true", help="Allow storing env values that look like secrets.")
     api_apply_parser.set_defaults(func=cmd_api)
 
-    agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, OpenClaw, and similar CLIs.")
+    agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, Amp, Devin, Junie, Zed, Kilo, and similar CLIs.")
     agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "platform", "platforms", "prompt", "instructions"])
-    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, openclaw, gemini, qwen, copilot, cursor, windsurf, aider, cline, roo, continue, goose, kiro, generic, or all. Defaults to all.")
+    agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, amp, devin, junie, zed, kilo, openclaw, gitlab-duo, firebase-studio, openhands, warp, trae, generic, or all. Defaults to all.")
     agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
     agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
     agent_parser.add_argument("--file", action="append", default=[], help="Extra project instruction/rules file to update. Repeat as needed.")
