@@ -28,6 +28,9 @@ CONTEXT_MEMORY_PATH = MEMORY_DIR / "context.md"
 PROJECT_CONFIG_NAME = ".ai-cli-switcher.json"
 PROJECT_MEMORY_NAME = ".ai-cli-memory.md"
 SCRIPT_PATH = Path(__file__).resolve()
+APP_NAME = "CLI Model Switcher"
+APP_CODENAME = "Ayatori Nexus"
+APP_TAGLINE = "A unified command-line hub for switching AI coding agents and sharing context across tools."
 WORKSPACE_FALLBACK_TARGETS = ["codex", "claude", "opencode"]
 WORKSPACE_TARGET_PRIORITY = ["codex", "claude", "opencode-openrouter", "opencode", "gemini", "local-ollama", "local-lmstudio"]
 AGENT_BRIDGE_MARKER_START = "<!-- >>> ai-cli-switcher agent-bridge >>> -->"
@@ -55,7 +58,10 @@ AGENT_BRIDGE_ALIASES = {
     "vscode": "copilot",
 }
 POSIX_BIN_COMMANDS: dict[str, list[str]] = {
+    "ayatori": [],
+    "ayatori-nexus": [],
     "ai-cli-switcher": [],
+    "ai-about": ["about"],
     "ai-use": ["use"],
     "ai-select": ["select"],
     "ai-current": ["current"],
@@ -1328,6 +1334,9 @@ def repair_project_config(fix: bool, state: dict[str, Any], events: list[dict[st
 
 def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
     required_ps = [
+        "function ayatori",
+        "function ayatori-nexus",
+        "function ai-about",
         "function ai-api",
         "function ai-model",
         "function ai-strategy",
@@ -1360,6 +1369,9 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
     cmd_dir = Path.home() / "bin" / "ai-cli-switcher"
     if cmd_dir.exists():
         required_cmd = [
+            "ayatori.cmd",
+            "ayatori-nexus.cmd",
+            "ai-about.cmd",
             "ai-api.cmd",
             "ai-model.cmd",
             "ai-strategy.cmd",
@@ -1388,7 +1400,7 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
     if os.name != "nt":
         bin_dir = Path.home() / ".local" / "bin"
         if bin_dir.exists():
-            required_bin = ["ai-cli-switcher", "ai-workspace", "ai-agent", "ai-wup", "ai-wgo", "ai-wpick"]
+            required_bin = ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-workspace", "ai-agent", "ai-wup", "ai-wgo", "ai-wpick"]
             missing_bin = [name for name in required_bin if not (bin_dir / name).exists()]
             if missing_bin and fix:
                 cmd_install_bin(argparse.Namespace(bin_dir=str(bin_dir), dry_run=False))
@@ -1722,6 +1734,58 @@ def cmd_status(args: argparse.Namespace) -> None:
     if payload["api_provider"]:
         print(f"api: {payload['api_provider']} ({payload['api_kind']})")
     print(f"memory: {payload['memory']}")
+
+
+def about_payload() -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": APP_NAME,
+        "codename": APP_CODENAME,
+        "tagline": APP_TAGLINE,
+        "home": str(APP_DIR),
+        "state": str(STATE_PATH),
+        "script": str(SCRIPT_PATH),
+        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about"],
+        "common_commands": [
+            "ayatori about",
+            "ayatori status",
+            "ayatori workspace up",
+            "ayatori agent prompt",
+            "ai-use codex",
+            "ai-workspace switch claude",
+        ],
+    }
+    if STATE_PATH.exists():
+        try:
+            state = normalize_state(read_json(STATE_PATH))
+            payload["active"] = state.get("active")
+            payload["profile_count"] = len(state.get("profiles", {}))
+            payload["workspace_targets"] = configured_workspace_targets(state)
+        except SystemExit as exc:
+            payload["state_warning"] = str(exc)
+    return payload
+
+
+def cmd_about(args: argparse.Namespace) -> None:
+    payload = about_payload()
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print(payload["codename"])
+    print(payload["tagline"])
+    print()
+    print(f"Core name: {payload['name']}")
+    print(f"State: {payload['state']}")
+    if payload.get("active"):
+        print(f"Active profile: {payload['active']}")
+    if payload.get("workspace_targets"):
+        print(f"Workspace targets: {' '.join(payload['workspace_targets'])}")
+    if payload.get("state_warning"):
+        print(f"State warning: {payload['state_warning']}")
+    print()
+    print("Entrypoints: " + ", ".join(payload["entrypoints"]))
+    print("Try:")
+    for command in payload["common_commands"]:
+        print(f"  {command}")
 
 
 def cmd_add(args: argparse.Namespace) -> None:
@@ -3615,6 +3679,21 @@ function Invoke-AiCliSwitcher {{
   }}
 }}
 
+function ayatori {{
+  Invoke-AiCliSwitcher @args
+  if ($args.Count -gt 0 -and ($args[0] -in @('use', 'select'))) {{
+    Invoke-Expression (Invoke-AiCliSwitcher current --shell powershell)
+  }}
+}}
+
+function ayatori-nexus {{
+  ayatori @args
+}}
+
+function ai-about {{
+  Invoke-AiCliSwitcher about @args
+}}
+
 function ai-use {{
   param([Parameter(Mandatory=$true)][string]$Name)
   Invoke-AiCliSwitcher use $Name @args | Write-Host
@@ -3751,6 +3830,32 @@ if not defined AI_SWITCHER_PY (
     py_cmd = '%AI_SWITCHER_PY% "%AI_SWITCHER_SCRIPT%"'
     apply_env = f'for /f "usebackq delims=" %%i in (`{py_cmd} current --shell cmd`) do call %%i'
     return {
+        "ayatori.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} %*
+if errorlevel 1 exit /b %errorlevel%
+if /I "%~1"=="use" (
+  {apply_env}
+)
+if /I "%~1"=="select" (
+  {apply_env}
+)
+""",
+        "ayatori-nexus.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} %*
+if errorlevel 1 exit /b %errorlevel%
+if /I "%~1"=="use" (
+  {apply_env}
+)
+if /I "%~1"=="select" (
+  {apply_env}
+)
+""",
+        "ai-about.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} about %*
+""",
         "ai-use.cmd": f"""@echo off
 {bootstrap}
 if "%~1"=="" (
@@ -3921,6 +4026,15 @@ _ai_cli_switcher() {{
   fi
 }}
 
+ayatori() {{
+  _ai_cli_switcher "$@" || return $?
+  case "${{1:-}}" in
+    use|select) eval "$(_ai_cli_switcher current --shell bash)" ;;
+  esac
+}}
+ayatori-nexus() {{ ayatori "$@"; }}
+ai-about() {{ _ai_cli_switcher about "$@"; }}
+
 ai-use() {{
   _ai_cli_switcher use "$@" || return $?
   eval "$(_ai_cli_switcher current --shell bash)"
@@ -3981,6 +4095,18 @@ function _ai_cli_switcher
     return 1
   end
 end
+
+function ayatori
+  _ai_cli_switcher $argv; or return $status
+  if test (count $argv) -gt 0
+    switch $argv[1]
+      case use select
+        _ai_cli_switcher current --shell fish | source
+    end
+  end
+end
+function ayatori-nexus; ayatori $argv; end
+function ai-about; _ai_cli_switcher about $argv; end
 
 function ai-use
   _ai_cli_switcher use $argv; or return $status
@@ -4413,6 +4539,8 @@ def cmd_setup_wizard(args: argparse.Namespace) -> None:
         cmd_secret(argparse.Namespace(action="audit", scope="all", json=False, fail=False))
 
     print("Next commands:")
+    print("  ayatori about")
+    print("  ayatori status")
     print("  ai-list")
     print(f"  ai-use {state['active']}")
     print("  ai-doctor --fix")
@@ -4450,6 +4578,8 @@ def cmd_setup_full(args: argparse.Namespace) -> None:
     shell = selected_setup_shell(args.shell)
     install_shell_helpers_for_setup(args, shell)
     print("Next commands:")
+    print("  ayatori about")
+    print("  ayatori status")
     print("  ai-list")
     print("  ai-use code-fast")
     print("  ai-api test code-fast")
@@ -4474,7 +4604,7 @@ def cmd_setup(args: argparse.Namespace) -> None:
     shell = selected_setup_shell(args.shell)
     install_shell_helpers_for_setup(args, shell)
     if not args.dry_run:
-        print("Run ai-status after reloading your shell to confirm the active profile.")
+        print("Run ayatori status after reloading your shell to confirm the active profile.")
 
 
 def cmd_project_init(args: argparse.Namespace) -> None:
@@ -4741,6 +4871,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     init_parser = sub.add_parser("init", help="Create default state and shared memory.")
     init_parser.set_defaults(func=cmd_init)
+
+    about_parser = sub.add_parser("about", help="Show Ayatori Nexus project info and common entrypoints.")
+    about_parser.add_argument("--json", action="store_true")
+    about_parser.set_defaults(func=cmd_about)
 
     list_parser = sub.add_parser("list", help="List profiles.")
     list_parser.set_defaults(func=cmd_list)
@@ -5145,6 +5279,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    if len(sys.argv) == 1:
+        cmd_about(argparse.Namespace(json=False))
+        return
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         cmd_run(argparse.Namespace(args=sys.argv[2:]))
         return

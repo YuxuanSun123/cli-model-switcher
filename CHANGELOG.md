@@ -9,6 +9,7 @@ This project currently follows a lightweight release format while it is still a 
 ### Added
 
 - German, Japanese, French, and Italian README pages, plus expanded language navigation.
+- `about` command and `ayatori` / `ayatori-nexus` shell entrypoints for the Ayatori Nexus project codename.
 
 ## [0.3.0] - 2026-05-29
 

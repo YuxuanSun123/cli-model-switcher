@@ -86,6 +86,9 @@ def main() -> int:
         "ai-workspace",
         "ai-agent",
         "install-bin",
+        "Ayatori Nexus",
+        "ayatori",
+        "ai-about",
         "README.de.md",
         "README.fr.md",
         "README.it.md",
@@ -98,14 +101,22 @@ def main() -> int:
 
     for relative in LOCALIZED_READMES:
         localized = (root / relative).read_text(encoding="utf-8")
+        if "Ayatori Nexus" not in localized:
+            fail(f"{relative} is missing the Ayatori Nexus codename")
         for expected in ["English", "Deutsch", "Français", "Italiano", "日本語", "繁體中文"]:
             if expected not in localized:
                 fail(f"{relative} is missing language navigation entry: {expected}")
         if "简体中文" not in localized and "簡體中文" not in localized:
             fail(f"{relative} is missing Simplified Chinese language navigation")
 
+    for relative in ["install.ps1", "install.sh"]:
+        installer = (root / relative).read_text(encoding="utf-8")
+        for expected in ["ayatori about", "ayatori status"]:
+            if expected not in installer:
+                fail(f"{relative} is missing installer next-step hint: {expected}")
+
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
-    for command in ["install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 

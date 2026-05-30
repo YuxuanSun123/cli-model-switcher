@@ -141,6 +141,8 @@ Invoke-Setup -Root $InstallDir
 Write-Host ""
 Write-Host "Installed CLI Model Switcher."
 Write-Host "Open a new terminal or reload the shell profile printed above, then run:"
+Write-Host "  ayatori about"
+Write-Host "  ayatori status"
 Write-Host "  ai-status"
 Write-Host "  ai-doctor --fix"
 Write-Host ""

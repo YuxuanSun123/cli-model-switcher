@@ -1,8 +1,8 @@
-# CLI Model Switcher
+# Ayatori Nexus
 
 **语言：** [English](../README.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | 简体中文 | [繁體中文](README.zh-TW.md)
 
-CLI Model Switcher 是一个本地命令行 AI 配置切换器。它可以在 Codex、Claude Code、OpenCode、Gemini CLI、本地模型和 OpenAI 兼容网关之间快速切换，同时共享同一套跨工具记忆。
+Ayatori Nexus 是 CLI Model Switcher 的项目花名：一个本地命令行 AI 配置切换器。它可以在 Codex、Claude Code、OpenCode、Gemini CLI、本地模型和 OpenAI 兼容网关之间快速切换，同时共享同一套跨工具记忆。
 
 ## 功能亮点
 

@@ -201,6 +201,8 @@ cat <<EOF
 Installed CLI Model Switcher.
 
 Open a new terminal or reload the shell profile printed above, then run:
+  ayatori about
+  ayatori status
   ai-status
   ai-doctor --fix
 

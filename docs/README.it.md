@@ -1,8 +1,8 @@
-# CLI Model Switcher
+# Ayatori Nexus
 
 **Lingua:** [English](../README.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | Italiano | [日本語](README.ja.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
-CLI Model Switcher è un gestore locale di profili per agenti di coding AI da riga di comando. Ti permette di passare tra Codex, Claude Code, OpenCode, Gemini CLI, modelli locali e gateway compatibili con OpenAI mantenendo una memoria condivisa.
+Ayatori Nexus è il nome di progetto di CLI Model Switcher: un gestore locale di profili per agenti di coding AI da riga di comando. Ti permette di passare tra Codex, Claude Code, OpenCode, Gemini CLI, modelli locali e gateway compatibili con OpenAI mantenendo una memoria condivisa.
 
 ## Funzionalità
 

@@ -1,4 +1,6 @@
-# CLI Model Switcher
+# Ayatori Nexus
+
+**CLI Model Switcher & Shared Memory Hub**
 
 **Language:** English | [Deutsch](docs/README.de.md) | [Français](docs/README.fr.md) | [Italiano](docs/README.it.md) | [日本語](docs/README.ja.md) | [简体中文](docs/README.zh-CN.md) | [繁體中文](docs/README.zh-TW.md)
 
@@ -6,7 +8,7 @@
 
 [![CI](https://github.com/YuxuanSun123/cli-model-switcher/actions/workflows/ci.yml/badge.svg)](https://github.com/YuxuanSun123/cli-model-switcher/actions/workflows/ci.yml)
 
-A local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
+Ayatori Nexus is the codename for CLI Model Switcher: a local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
 
 ## What It Does
 
@@ -71,6 +73,8 @@ sh install.sh --dry-run
 After setup, reload your shell profile if the installer asks you to. Then:
 
 ```powershell
+ayatori about
+ayatori status
 ai-list
 ai-use code-fast
 ai-status
@@ -206,6 +210,11 @@ ai-handoff opencode-openrouter "Continue implementation using the shared memory 
 ## Common Commands
 
 ```powershell
+ayatori about
+ayatori status
+ayatori workspace up
+ayatori agent prompt
+
 ai-use codex
 ai-use claude
 ai-use opencode-openrouter
@@ -252,10 +261,12 @@ python3 scripts/cli_model_switcher.py install-bin
 
 On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
 
-Keep the shell functions for `ai-use` and `ai-select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
+Keep the shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
 Generated helpers include:
 
+- `ayatori`, `ayatori-nexus`
+- `ai-about`
 - `ai-use`
 - `ai-current`
 - `ai-status`

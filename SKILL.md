@@ -33,6 +33,7 @@ Run the helper with Python 3:
 
 ```powershell
 .\install.ps1
+py -3.12 scripts/cli_model_switcher.py about
 py -3.12 scripts/cli_model_switcher.py init
 py -3.12 scripts/cli_model_switcher.py setup --shell auto
 py -3.12 scripts/cli_model_switcher.py setup --full
@@ -157,6 +158,7 @@ When a user asks for "realtime switching", implement shell functions or aliases 
 Prefer script commands over manual JSON edits:
 
 - `setup --shell auto` initializes state and installs the best shell helper for the current platform.
+- `about` shows Ayatori Nexus project metadata, state paths, installed entrypoints, and a short set of next commands.
 - `setup --full` initializes state, creates recommended profiles (`codex`, `claude`, `gemini`, `opencode-openrouter`, `opencode-deepseek`, `local-ollama`), installs strategy aliases, detects installed CLI tools, and installs shell helpers. Use `--no-install` to skip wrapper writes.
 - `setup --wizard` detects installed CLI tools, offers profile recipes, chooses an active profile, installs shell helpers, then runs `doctor --fix` and `secret audit`. Use `--yes --recipes NAME1,NAME2 --active PROFILE` for non-interactive setup.
 - `status` prints the active profile, scope, command status, and memory path.
@@ -195,12 +197,12 @@ Prefer script commands over manual JSON edits:
 - `doctor` checks command availability, env vars, state files, and memory files.
 - `doctor --fix` repairs missing or corrupt state, invalid active profiles, broken aliases, missing memory files, and stale managed wrappers when possible. Use `--json` for automation.
 - `secret audit --scope all|state|project|memory` scans profiles and memory without printing secret values. Use `--fail` in scripts to return nonzero when findings exist.
-- `install-powershell --profile $PROFILE` writes `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-agent`, `ai-session`, `ai-workspace`, `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-page`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
-- `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ai-use.cmd`, `ai-agent.cmd`, `ai-workspace.cmd`, `ai-wup.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
+- `install-powershell --profile $PROFILE` writes `ayatori`, `ayatori-nexus`, `ai-about`, `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-agent`, `ai-session`, `ai-workspace`, `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-page`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
+- `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ayatori.cmd`, `ai-about.cmd`, `ai-use.cmd`, `ai-agent.cmd`, `ai-workspace.cmd`, `ai-wup.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
 - `install-shell --output FILE` writes Bash/Zsh helper functions.
 - `install-fish --output FILE` writes fish helper functions.
 - `install-unix --shell auto|bash|zsh|fish` installs Linux/macOS shell helpers, updates the relevant shell profile, and writes POSIX executable shims into `~/.local/bin` by default.
-- `install-bin --bin-dir DIR` writes POSIX executable shims such as `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` for non-interactive Linux/macOS/WSL agent shells. Keep shell functions for `ai-use` and `ai-select` because only sourced functions can update the current shell environment.
+- `install-bin --bin-dir DIR` writes POSIX executable shims such as `ayatori`, `ayatori-nexus`, `ai-about`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` for non-interactive Linux/macOS/WSL agent shells. Keep shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select` because only sourced functions can update the current shell environment.
 - `current --shell` supports `powershell`, `cmd`, `bash`, `zsh`, `fish`, and `nu`.
 - Set `AI_CLI_SWITCHER_PYTHON` when wrappers need a specific Python executable, such as `python3` or a full interpreter path. The generated wrappers already try common launchers such as `py -3.12` when the variable is not set.
 
