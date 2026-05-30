@@ -143,6 +143,8 @@ ai-workspace start codex claude --backend print
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent recommend
+ai-agent recommend --json
 ai-agent platforms amp devin junie zed kilo
 ai-agent platforms gitlab-duo firebase-studio android-studio-gemini openhands warp trae
 ai-agent install amp devin junie zed kilo
@@ -177,6 +179,8 @@ handoff claude review the current changes
 - `openclaw` / `claw` / `open-claw`
 - `aider`、`cline`、`roo`
 - `generic` 寫入 `AGENTS.md`，也可以用 `--file PATH` 寫入任意自訂規則檔案
+
+`ai-agent platforms` 會顯示 support 等級：`native` 表示官方規則路徑，`compatible` 表示官方相容的共享說明檔案，`generic` 表示通用 `AGENTS.md` 橋接，`experimental` 表示路徑可能隨版本變化。`ai-agent recommend` 會掃描目前專案並給出推薦安裝命令。
 
 ## 會話和交接
 
@@ -232,6 +236,7 @@ ai-workspace add gemini
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent recommend
 ai-agent platforms amp devin junie zed kilo
 ai-agent install amp devin junie zed kilo
 ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae

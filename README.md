@@ -152,6 +152,8 @@ ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
 ai-agent platforms
+ai-agent recommend
+ai-agent recommend --json
 ai-agent platforms amp devin junie zed kilo
 ai-agent platforms gitlab-duo firebase-studio android-studio-gemini openhands warp trae
 ai-agent platforms openclaw
@@ -189,7 +191,7 @@ Built-in agent bridge targets include:
 - `aider`, `cline`, `roo`
 - `generic` for `AGENTS.md`, plus `--file PATH` for any custom rule file
 
-Use `ai-agent platforms` to list platform-level adapters. Dedicated adapters now cover Amp, Devin, Junie, Zed, Kilo, GitLab Duo, Firebase Studio, Android Studio Gemini, OpenHands, Warp, Trae, and OpenClaw. OpenClaw has a dedicated adapter for its default `~/.openclaw/workspace`; `ai-agent install openclaw --dir ~/.openclaw/workspace` writes both `AGENTS.md` and `TOOLS.md` there. See the [Amp manual](https://ampcode.com/manual), [Devin rules](https://cli.devin.ai/docs/extensibility/rules), [Junie docs](https://www.jetbrains.com/help/ai-assistant/junie-agent.html), [Zed rules](https://zed.dev/docs/ai/rules), [Kilo custom instructions](https://kilo.ai/docs/customize/custom-instructions), [GitLab Duo custom rules](https://docs.gitlab.com/user/duo_agent_platform/customize/custom_rules/), [Firebase Studio Gemini docs](https://firebase.google.com/docs/studio/set-up-gemini), [Android Studio Gemini agent files](https://developer.android.com/studio/gemini/agent-files?hl=en), [OpenHands customization](https://docs.openhands.dev/openhands/usage/customization/repository), [Warp rules](https://docs.warp.dev/features/warp-ai/rules), [Trae docs](https://traeide.com/docs), and [OpenClaw agent docs](https://docs.openclaw.ai/agent) for platform conventions. Use `ai-agent targets` to list every supported target and file path, `ai-agent detect` to inspect the current project for existing agent rule files, or `ai-agent install --detected` to install only the bridges that match detected files or dedicated rule directories.
+Use `ai-agent platforms` to list platform-level adapters. Each platform reports a support level: `native` for official rule paths, `compatible` for officially compatible shared instruction files, `generic` for the generic `AGENTS.md` bridge, and `experimental` for version-dependent paths. Use `ai-agent recommend` to scan the current project and print the shortest matching `ai-agent install ...` command. Dedicated adapters now cover Amp, Devin, Junie, Zed, Kilo, GitLab Duo, Firebase Studio, Android Studio Gemini, OpenHands, Warp, Trae, and OpenClaw. OpenClaw has a dedicated adapter for its default `~/.openclaw/workspace`; `ai-agent install openclaw --dir ~/.openclaw/workspace` writes both `AGENTS.md` and `TOOLS.md` there. See the [Amp manual](https://ampcode.com/manual), [Devin rules](https://cli.devin.ai/docs/extensibility/rules), [Junie docs](https://www.jetbrains.com/help/ai-assistant/junie-agent.html), [Zed rules](https://zed.dev/docs/ai/rules), [Kilo custom instructions](https://kilo.ai/docs/customize/custom-instructions), [GitLab Duo custom rules](https://docs.gitlab.com/user/duo_agent_platform/customize/custom_rules/), [Firebase Studio Gemini docs](https://firebase.google.com/docs/studio/set-up-gemini), [Android Studio Gemini agent files](https://developer.android.com/studio/gemini/agent-files?hl=en), [OpenHands customization](https://docs.openhands.dev/openhands/usage/customization/repository), [Warp rules](https://docs.warp.dev/features/warp-ai/rules), [Trae docs](https://traeide.com/docs), and [OpenClaw agent docs](https://docs.openclaw.ai/agent) for platform conventions. Use `ai-agent targets` to list every supported target and file path, `ai-agent detect` to inspect the current project for existing agent rule files, or `ai-agent install --detected` to install only the bridges that match detected files or dedicated rule directories.
 
 ## Sessions and Handoffs
 
@@ -250,6 +252,7 @@ ai-workspace add gemini
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent recommend
 ai-agent platforms amp devin junie zed kilo
 ai-agent install amp devin junie zed kilo
 ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae

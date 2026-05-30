@@ -141,6 +141,8 @@ Sobald du in Codex, Claude oder OpenCode bist, gehoert deine Eingabe diesem Agen
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
+ai-agent recommend
+ai-agent recommend --json
 ai-agent platforms amp devin junie zed kilo
 ai-agent platforms gitlab-duo firebase-studio android-studio-gemini openhands warp trae
 ai-agent install amp devin junie zed kilo
@@ -207,6 +209,7 @@ ai-workspace switch claude
 ai-wgo claude
 ai-agent install codex claude opencode
 ai-agent install continue goose kiro
+ai-agent recommend
 ai-agent platforms amp devin junie zed kilo
 ai-agent install amp devin junie zed kilo
 ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae

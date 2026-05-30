@@ -225,6 +225,43 @@ AGENT_PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         ],
     }
 }
+AGENT_SUPPORT_LEVELS = {"native", "compatible", "generic", "experimental"}
+AGENT_PLATFORM_SUPPORT: dict[str, str] = {
+    "aider": "native",
+    "amp": "native",
+    "android-studio-gemini": "native",
+    "claude": "native",
+    "cline": "native",
+    "codex": "native",
+    "continue": "native",
+    "copilot": "native",
+    "cursor": "native",
+    "devin": "native",
+    "devin-review": "native",
+    "firebase-studio": "native",
+    "gemini": "native",
+    "generic": "generic",
+    "gitlab-duo": "native",
+    "goose": "native",
+    "junie": "native",
+    "kilo": "native",
+    "kiro": "native",
+    "openclaw": "native",
+    "opencode": "compatible",
+    "openhands": "native",
+    "qwen": "native",
+    "roo": "native",
+    "trae": "experimental",
+    "warp": "native",
+    "windsurf": "native",
+    "zed": "native",
+}
+SUPPORT_LEVEL_DESCRIPTIONS = {
+    "native": "official platform rule path",
+    "compatible": "officially compatible shared instruction file",
+    "generic": "generic AGENTS.md bridge",
+    "experimental": "version-dependent or unstable rule path",
+}
 POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ayatori": [],
     "ayatori-nexus": [],
@@ -2758,6 +2795,13 @@ def agent_platform_label(name: str) -> str:
     return str(spec.get("label") or labels.get(name) or name)
 
 
+def agent_platform_support(name: str, spec: dict[str, Any]) -> str:
+    support = str(spec.get("support") or AGENT_PLATFORM_SUPPORT.get(name, "generic"))
+    if support not in AGENT_SUPPORT_LEVELS:
+        return "generic"
+    return support
+
+
 def agent_platform_root(spec: dict[str, Any], root: Path, requested_root: bool) -> Path:
     if requested_root:
         return root
@@ -2797,6 +2841,7 @@ def agent_platform_info(root: Path, names: list[str] | None = None, requested_ro
         payload.append({
             "platform": name,
             "label": agent_platform_label(name),
+            "support": agent_platform_support(name, spec),
             "aliases": sorted(reverse_aliases.get(name, [])),
             "targets": targets,
             "default_dir": default_dir,
@@ -2829,6 +2874,7 @@ def print_agent_platforms(root: Path, names: list[str] | None, as_json: bool, re
         files = ", ".join(file["relative"] for file in item["files"]) or "(no bridge files)"
         if detailed:
             print(f"  {item['platform']}{aliases}: {item['label']}")
+            print(f"    support: {item['support']}")
             if item["default_dir"] != "." or requested_root:
                 print(f"    workspace: {item['root']}")
             print(f"    targets: {', '.join(item['targets']) if item['targets'] else '(none)'}")
@@ -2844,7 +2890,10 @@ def print_agent_platforms(root: Path, names: list[str] | None, as_json: bool, re
             for note in item.get("notes", []):
                 print(f"    note: {note}")
         else:
-            print(f"  {item['platform']}{aliases}: {item['label']} -> {files}")
+            print(f"  {item['platform']}{aliases}: {item['label']} [{item['support']}] -> {files}")
+    print("Support levels:")
+    for level in ["native", "compatible", "generic", "experimental"]:
+        print(f"  {level}: {SUPPORT_LEVEL_DESCRIPTIONS[level]}")
     if not detailed:
         print("Show details for one platform: ai-agent platforms amp")
 
@@ -2921,6 +2970,93 @@ def print_agent_detect(root: Path, targets: list[str] | None, as_json: bool) -> 
     else:
         print("Install common bridges: ai-agent install codex claude opencode")
         print("Install every known bridge: ai-agent install all")
+
+
+def add_agent_recommendation(recommendations: list[dict[str, Any]], target: str, reason: str, path: Path, root: Path) -> None:
+    target = agent_bridge_target_name(target)
+    relative = display_relative_path(path, root)
+    for item in recommendations:
+        if item["target"] == target:
+            if reason not in item["reasons"]:
+                item["reasons"].append(reason)
+            if relative not in item["paths"]:
+                item["paths"].append(relative)
+            return
+    recommendations.append({
+        "target": target,
+        "reasons": [reason],
+        "paths": [relative],
+        "support": agent_platform_support(target, AGENT_PLATFORM_SPECS.get(target, {})),
+    })
+
+
+def agent_recommendation_rules() -> list[tuple[str, list[str], str]]:
+    return [
+        ("cursor", [".cursor/rules", ".cursor"], "detected Cursor rules directory"),
+        ("windsurf", [".windsurf/rules", ".windsurf"], "detected Windsurf rules directory"),
+        ("continue", [".continue"], "detected Continue project directory"),
+        ("kiro", [".kiro"], "detected Kiro project directory"),
+        ("junie", [".junie"], "detected Junie project directory"),
+        ("kilo", [".kilo", "kilo.jsonc"], "detected Kilo project rules"),
+        ("gitlab-duo", [".gitlab/duo", ".gitlab"], "detected GitLab project directory"),
+        ("firebase-studio", [".idx"], "detected Firebase Studio or Project IDX directory"),
+        ("openhands", [".openhands"], "detected OpenHands project directory"),
+        ("trae", [".trae"], "detected Trae project directory"),
+        ("copilot", [".github/copilot-instructions.md", ".github"], "detected GitHub Copilot instructions or GitHub metadata"),
+        ("claude", ["CLAUDE.md"], "detected CLAUDE.md"),
+        ("gemini", ["GEMINI.md"], "detected GEMINI.md"),
+        ("qwen", ["QWEN.md"], "detected QWEN.md"),
+        ("warp", ["WARP.md"], "detected WARP.md"),
+        ("devin-review", ["REVIEW.md"], "detected REVIEW.md"),
+    ]
+
+
+def agent_recommendation_payload(root: Path) -> dict[str, Any]:
+    recommendations: list[dict[str, Any]] = []
+    for target, paths, reason in agent_recommendation_rules():
+        for relative in paths:
+            path = root / relative
+            if path.exists():
+                add_agent_recommendation(recommendations, target, f"{reason}: {relative}", path, root)
+                break
+
+    agents_path = root / "AGENTS.md"
+    if agents_path.exists():
+        for target in ["codex", "opencode", "amp", "devin", "android-studio-gemini", "openhands", "generic"]:
+            add_agent_recommendation(recommendations, target, "detected shared AGENTS.md", agents_path, root)
+
+    install_targets = dedupe_preserve_order([item["target"] for item in recommendations])
+    payload = {
+        "root": str(root),
+        "recommendations": recommendations,
+        "install_targets": install_targets,
+        "install_command": f"ai-agent install {' '.join(install_targets)}" if install_targets else None,
+        "fallback_targets": ["codex", "claude", "opencode"],
+        "fallback_command": "ai-agent install codex claude opencode",
+    }
+    return payload
+
+
+def print_agent_recommend(root: Path, as_json: bool) -> None:
+    payload = agent_recommendation_payload(root)
+    if as_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print(f"Agent bridge recommendations for {root}")
+    recommendations = payload["recommendations"]
+    if recommendations:
+        print("Recommended agent bridge targets:")
+        for item in recommendations:
+            reasons = "; ".join(item["reasons"])
+            print(f"  {item['target']} [{item['support']}]: {reasons}")
+        print("Install command:")
+        print(f"  {payload['install_command']}")
+    else:
+        print("No clear agent-specific project files were detected.")
+        print("Fallback install command:")
+        print(f"  {payload['fallback_command']}")
+        print("Or inspect every target:")
+        print("  ai-agent targets")
 
 
 def agent_bridge_commands() -> list[tuple[str, str]]:
@@ -3018,6 +3154,12 @@ def cmd_agent(args: argparse.Namespace) -> None:
         values = getattr(args, "targets", [])
         names = agent_platform_names(values) if not getattr(args, "all", False) else agent_platform_available()
         print_agent_platforms(root, names, getattr(args, "json", False), bool(getattr(args, "dir", None)))
+        return
+
+    if args.action == "recommend":
+        if getattr(args, "targets", []) or getattr(args, "all", False):
+            raise SystemExit("agent recommend does not accept explicit targets or --all")
+        print_agent_recommend(root, getattr(args, "json", False))
         return
 
     if args.action in {"targets", "detect"}:
@@ -5418,7 +5560,7 @@ def build_parser() -> argparse.ArgumentParser:
     api_apply_parser.set_defaults(func=cmd_api)
 
     agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, Amp, Devin, Junie, Zed, Kilo, and similar CLIs.")
-    agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "platform", "platforms", "prompt", "instructions"])
+    agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "recommend", "platform", "platforms", "prompt", "instructions"])
     agent_parser.add_argument("targets", nargs="*", help="Agent targets such as codex, claude, opencode, amp, devin, junie, zed, kilo, openclaw, gitlab-duo, firebase-studio, openhands, warp, trae, generic, or all. Defaults to all.")
     agent_parser.add_argument("--all", action="store_true", help="Install for every known agent target.")
     agent_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")

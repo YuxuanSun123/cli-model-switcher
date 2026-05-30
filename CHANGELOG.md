@@ -10,6 +10,7 @@ This project currently follows a lightweight release format while it is still a 
 
 - German, Japanese, French, and Italian README pages, plus expanded language navigation.
 - `about` command and `ayatori` / `ayatori-nexus` shell entrypoints for the Ayatori Nexus project codename.
+- `agent recommend` for project-aware bridge install suggestions, plus platform support levels in `agent platforms`.
 - Agent platform adapters for Amp, Devin, Junie, Zed, Kilo, GitLab Duo, Firebase Studio, Android Studio Gemini, OpenHands, Warp, and Trae.
 - `agent platforms` command plus an OpenClaw platform adapter for `~/.openclaw/workspace` with `AGENTS.md` and `TOOLS.md` bridge files.
 - `agent targets` and `agent detect` commands, plus Continue, Goose, and Kiro agent bridge targets.
