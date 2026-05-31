@@ -71,6 +71,7 @@ sh install.sh --dry-run
 ```powershell
 ai-list
 ai-lite
+ai-menu
 ai-use code-fast
 ai-status
 ai-recall
@@ -148,6 +149,9 @@ ai-lite --dry-run
 ai-lite --fix
 ai-lite --prompt
 ai-lite --undo
+ai-menu
+ai-menu --list
+ai-menu --choice recommend
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -288,7 +292,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-在 Linux、macOS 和 WSL 上，`install-unix` 預設還會把 `ai-workspace`、`ai-agent`、`ai-wup`、`ai-wgo` 等可執行 shim 寫入 `~/.local/bin`。這對 agent 內部切換很重要，因為 Codex、Claude、OpenCode 這類工具呼叫 shell 命令時經常是非互動 shell，不一定會載入 Bash/Zsh/fish 函式。
+在 Linux、macOS 和 WSL 上，`install-unix` 預設還會把 `ai-lite`、`ai-menu`、`ai-workspace`、`ai-agent`、`ai-wup`、`ai-wgo` 等可執行 shim 寫入 `~/.local/bin`。這對 agent 內部切換很重要，因為 Codex、Claude、OpenCode 這類工具呼叫 shell 命令時經常是非互動 shell，不一定會載入 Bash/Zsh/fish 函式。
 
 繼續保留 `ai-use` 和 `ai-select` 的 shell 函式；只有被目前 shell source 的函式才能更新目前終端裡的環境變數。可執行 shim 更適合直接命令、agent bridge 和非互動 shell。`install-unix` 會把 shim 目錄加入互動式 Bash/Zsh/fish helper；如果某個 agent 仍然找不到 `ai-workspace`，Bash/Zsh 可加入 `export PATH="$HOME/.local/bin:$PATH"`，fish 可執行 `fish_add_path ~/.local/bin`。
 
@@ -304,6 +308,7 @@ python3 scripts/cli_model_switcher.py install-bin
 - `ai-recipe`
 - `ai-adapter`
 - `ai-lite`
+- `ai-menu`
 - `ai-agent`
 - `ai-session`
 - `ai-workspace`

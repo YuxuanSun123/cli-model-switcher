@@ -69,6 +69,7 @@ Dopo l'installazione, ricarica il profilo shell se richiesto:
 ```powershell
 ai-list
 ai-lite
+ai-menu
 ai-use code-fast
 ai-status
 ai-recall
@@ -146,6 +147,9 @@ ai-lite --dry-run
 ai-lite --fix
 ai-lite --prompt
 ai-lite --undo
+ai-menu
+ai-menu --list
+ai-menu --choice recommend
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -261,7 +265,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-Su Linux, macOS e WSL, `install-unix` installa anche shim eseguibili come `ai-workspace`, `ai-agent`, `ai-wup` e `ai-wgo` in `~/.local/bin`. Sono utili per bridge degli agenti e shell non interattive.
+Su Linux, macOS e WSL, `install-unix` installa anche shim eseguibili come `ai-lite`, `ai-menu`, `ai-workspace`, `ai-agent`, `ai-wup` e `ai-wgo` in `~/.local/bin`. Sono utili per bridge degli agenti e shell non interattive.
 
 ## Memoria Condivisa
 

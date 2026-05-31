@@ -69,6 +69,7 @@ sh install.sh --dry-run
 ```powershell
 ai-list
 ai-lite
+ai-menu
 ai-use code-fast
 ai-status
 ai-recall
@@ -146,6 +147,9 @@ ai-lite --dry-run
 ai-lite --fix
 ai-lite --prompt
 ai-lite --undo
+ai-menu
+ai-menu --list
+ai-menu --choice recommend
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -261,7 +265,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-Linux、macOS、WSL では、`install-unix` が `ai-workspace`、`ai-agent`、`ai-wup`、`ai-wgo` などの実行可能 shim を標準で `~/.local/bin` に置きます。これらは Agent Bridge や非対話シェルで役立ちます。
+Linux、macOS、WSL では、`install-unix` が `ai-lite`、`ai-menu`、`ai-workspace`、`ai-agent`、`ai-wup`、`ai-wgo` などの実行可能 shim を標準で `~/.local/bin` に置きます。これらは Agent Bridge や非対話シェルで役立ちます。
 
 ## 共有メモリ
 

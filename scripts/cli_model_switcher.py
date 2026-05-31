@@ -280,6 +280,7 @@ POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ai-recipe": ["recipe"],
     "ai-adapter": ["adapter"],
     "ai-lite": ["lite"],
+    "ai-menu": ["menu"],
     "ai-agent": ["agent"],
     "ai-session": ["session"],
     "ai-workspace": ["workspace"],
@@ -1950,10 +1951,11 @@ def about_payload() -> dict[str, Any]:
         "home": str(APP_DIR),
         "state": str(STATE_PATH),
         "script": str(SCRIPT_PATH),
-        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-lite"],
+        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-lite", "ai-menu"],
         "common_commands": [
             "ayatori about",
             "ayatori status",
+            "ai-menu",
             "ai-lite",
             "ayatori workspace up",
             "ayatori agent prompt",
@@ -3263,6 +3265,139 @@ def cmd_lite(args: argparse.Namespace) -> None:
         print(agent_bridge_text("prompt").rstrip())
 
 
+def menu_items() -> list[dict[str, str]]:
+    return [
+        {
+            "key": "lite-dry-run",
+            "label": "Preview Lite bridge",
+            "detail": "Show the project bridge files that ai-lite would create.",
+        },
+        {
+            "key": "lite",
+            "label": "Install Lite bridge",
+            "detail": "Write the recommended project bridge files.",
+        },
+        {
+            "key": "lite-all-common",
+            "label": "Preview common bridges",
+            "detail": "Show common bridge files for Codex, Claude, OpenCode, Gemini, Copilot, Cursor, and Windsurf.",
+        },
+        {
+            "key": "prompt",
+            "label": "Print agent prompt",
+            "detail": "Print the compact rule for an already-running agent session.",
+        },
+        {
+            "key": "recommend",
+            "label": "Recommend bridge targets",
+            "detail": "Scan this project and suggest agent adapters.",
+        },
+        {
+            "key": "platforms",
+            "label": "List supported platforms",
+            "detail": "Show supported agent platforms and rule-file paths.",
+        },
+        {
+            "key": "doctor",
+            "label": "Run doctor check",
+            "detail": "Check switcher state, memory paths, and active profile health.",
+        },
+        {
+            "key": "paths",
+            "label": "Show paths",
+            "detail": "Print config and shared memory locations.",
+        },
+        {
+            "key": "quit",
+            "label": "Quit",
+            "detail": "Exit without running another command.",
+        },
+    ]
+
+
+def print_menu(items: list[dict[str, str]]) -> None:
+    print("Ayatori quick menu")
+    for index, item in enumerate(items, start=1):
+        print(f"  {index}. {item['key']} - {item['label']}")
+        print(f"     {item['detail']}")
+
+
+def resolve_menu_item(choice: str, items: list[dict[str, str]]) -> dict[str, str]:
+    normalized = choice.strip().lower()
+    if not normalized:
+        raise SystemExit("No menu choice provided.")
+    if normalized.isdigit():
+        index = int(normalized)
+        if 1 <= index <= len(items):
+            return items[index - 1]
+        raise SystemExit(f"Invalid menu choice {choice!r}.")
+    for item in items:
+        if normalized == item["key"]:
+            return item
+    aliases = {
+        "q": "quit",
+        "exit": "quit",
+        "dry-run": "lite-dry-run",
+        "preview": "lite-dry-run",
+        "install": "lite",
+        "common": "lite-all-common",
+        "agents": "platforms",
+    }
+    alias = aliases.get(normalized)
+    if alias:
+        for item in items:
+            if item["key"] == alias:
+                return item
+    keys = ", ".join(item["key"] for item in items)
+    raise SystemExit(f"Unknown menu choice {choice!r}. Use one of: {keys}")
+
+
+def cmd_menu(args: argparse.Namespace) -> None:
+    root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
+    items = menu_items()
+    if args.list:
+        print_menu(items)
+        return
+
+    choice = str(args.choice).strip() if args.choice else ""
+    if not choice:
+        print_menu(items)
+        if not sys.stdin.isatty():
+            raise SystemExit("Non-interactive terminal: pass --choice NUMBER_OR_KEY.")
+        choice = input("Select action: ").strip()
+
+    item = resolve_menu_item(choice, items)
+    key = item["key"]
+    if key == "quit":
+        print("No action selected.")
+        return
+    if key == "lite-dry-run":
+        cmd_lite(argparse.Namespace(targets=[], dir=str(root), all_common=False, fix=False, prompt=False, undo=False, dry_run=True, json=False))
+        return
+    if key == "lite":
+        cmd_lite(argparse.Namespace(targets=[], dir=str(root), all_common=False, fix=False, prompt=False, undo=False, dry_run=False, json=False))
+        return
+    if key == "lite-all-common":
+        cmd_lite(argparse.Namespace(targets=[], dir=str(root), all_common=True, fix=False, prompt=False, undo=False, dry_run=True, json=False))
+        return
+    if key == "prompt":
+        print(agent_bridge_text("prompt").rstrip())
+        return
+    if key == "recommend":
+        print_agent_recommend(root, False)
+        return
+    if key == "platforms":
+        print_agent_platforms(root, None, False, bool(getattr(args, "dir", None)))
+        return
+    if key == "doctor":
+        cmd_doctor(argparse.Namespace(fix=False, json=False))
+        return
+    if key == "paths":
+        cmd_paths(argparse.Namespace(json=False))
+        return
+    raise SystemExit(f"Unhandled menu choice {key!r}.")
+
+
 def cmd_agent(args: argparse.Namespace) -> None:
     root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
 
@@ -4476,6 +4611,10 @@ function ai-lite {{
   Invoke-AiCliSwitcher lite @args
 }}
 
+function ai-menu {{
+  Invoke-AiCliSwitcher menu @args
+}}
+
 function ai-agent {{
   Invoke-AiCliSwitcher agent @args
 }}
@@ -4648,6 +4787,10 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} lite %*
 """,
+        "ai-menu.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} menu %*
+""",
         "ai-agent.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} agent %*
@@ -4796,6 +4939,7 @@ ai-strategy() {{ _ai_cli_switcher strategy "$@"; }}
 ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
 ai-lite() {{ _ai_cli_switcher lite "$@"; }}
+ai-menu() {{ _ai_cli_switcher menu "$@"; }}
 ai-agent() {{ _ai_cli_switcher agent "$@"; }}
 ai-session() {{ _ai_cli_switcher session "$@"; }}
 ai-workspace() {{ _ai_cli_switcher workspace "$@"; }}
@@ -4870,6 +5014,7 @@ function ai-strategy; _ai_cli_switcher strategy $argv; end
 function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
 function ai-lite; _ai_cli_switcher lite $argv; end
+function ai-menu; _ai_cli_switcher menu $argv; end
 function ai-agent; _ai_cli_switcher agent $argv; end
 function ai-session; _ai_cli_switcher session $argv; end
 function ai-workspace; _ai_cli_switcher workspace $argv; end
@@ -5652,6 +5797,12 @@ def build_parser() -> argparse.ArgumentParser:
     lite_parser.add_argument("--dry-run", action="store_true")
     lite_parser.add_argument("--json", action="store_true")
     lite_parser.set_defaults(func=cmd_lite)
+
+    menu_parser = sub.add_parser("menu", help="Open a simple command menu for common Ayatori actions.")
+    menu_parser.add_argument("--choice", help="Run a menu item by number or key without prompting.")
+    menu_parser.add_argument("--dir", help="Project directory for project-aware menu actions. Defaults to the current directory.")
+    menu_parser.add_argument("--list", action="store_true", help="List menu items without prompting or running an action.")
+    menu_parser.set_defaults(func=cmd_menu)
 
     list_parser = sub.add_parser("list", help="List profiles.")
     list_parser.set_defaults(func=cmd_list)

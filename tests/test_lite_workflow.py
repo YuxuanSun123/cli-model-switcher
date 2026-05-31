@@ -106,10 +106,32 @@ def test_undo_preview() -> None:
             raise AssertionError(f"undo preview: expected would-leave-unchanged, got {action}")
 
 
+def test_menu_shortcuts() -> None:
+    listed = run_cli("menu", "--list").stdout
+    for expected in ["lite-dry-run", "recommend", "prompt", "platforms"]:
+        if expected not in listed:
+            raise AssertionError(f"menu --list: expected {expected!r} in output")
+
+    prompt = run_cli("menu", "--choice", "prompt").stdout
+    if "Agent switching rule" not in prompt:
+        raise AssertionError("menu prompt: expected compact agent switching rule")
+
+    with tempfile.TemporaryDirectory(prefix="ai-menu-") as raw:
+        root = copy_fixture("cursor", Path(raw))
+        preview = run_cli("menu", "--choice", "lite-dry-run", "--dir", str(root)).stdout
+        if "Targets: cursor" not in preview or "Dry run only" not in preview:
+            raise AssertionError(f"menu lite-dry-run: unexpected output\n{preview}")
+
+        recommend = run_cli("menu", "--choice", "recommend", "--dir", str(root)).stdout
+        if "Recommended agent bridge targets" not in recommend or "cursor" not in recommend:
+            raise AssertionError(f"menu recommend: unexpected output\n{recommend}")
+
+
 def main() -> int:
     test_fixture_recommendations()
     test_mixed_and_common_modes()
     test_undo_preview()
+    test_menu_shortcuts()
     print("Lite workflow fixtures passed.")
     return 0
 

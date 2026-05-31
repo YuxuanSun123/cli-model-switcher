@@ -6,7 +6,9 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Added
+
+- `menu` / `ai-menu`, a compact numbered menu for Lite setup, project recommendations, supported platforms, already-running-agent prompt text, doctor checks, and path lookup.
 
 ## [0.4.0] - 2026-05-31
 

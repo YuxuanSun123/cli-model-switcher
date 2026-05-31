@@ -26,6 +26,14 @@ ai-lite
 
 Use `ai-lite --dry-run` to preview changes, `ai-lite --prompt` for an already-running agent, and `ai-lite --undo` to remove managed bridge blocks.
 
+Prefer a menu? Run:
+
+```bash
+ai-menu
+ai-menu --list
+ai-menu --choice recommend
+```
+
 ## What It Does
 
 - Switch active CLI AI profiles with `ai-use`.
@@ -34,6 +42,7 @@ Use `ai-lite --dry-run` to preview changes, `ai-lite --prompt` for an already-ru
 - Manage API presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, Groq, Mistral, xAI, Together, Fireworks, DashScope, Moonshot, Zhipu, SiliconFlow, Volcengine, Cerebras, Perplexity, Novita, Azure OpenAI, and custom OpenAI-compatible endpoints.
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
 - Offer `ai-lite` as a minimal one-command path for users who only want project agent-bridge setup.
+- Offer `ai-menu` as a small numbered menu for common setup, diagnosis, and bridge actions.
 - Open several agents in one terminal workspace with `ai-workspace`, then switch between Codex, Claude, OpenCode, or recipes from that workspace.
 - Start and track AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printable fallback commands.
 - Audit state and memory for direct-looking secrets before export or migration.
@@ -148,6 +157,20 @@ ai-lite --json
 ```
 
 With no targets, `ai-lite` scans the current project and installs the shortest matching bridge. If it cannot detect an agent-specific setup, it falls back to `codex claude opencode`. Use `setup --lite` or installer `--lite` when you want only this minimal bridge workflow and shell helpers.
+
+## Quick Menu
+
+Use `ai-menu` when you want a short numbered menu instead of remembering commands:
+
+```powershell
+ai-menu
+ai-menu --list
+ai-menu --choice lite-dry-run
+ai-menu --choice recommend
+ai-menu --choice prompt
+```
+
+The menu can preview or install Lite bridge files, print the already-running-agent prompt, show project recommendations, list supported platforms, run `doctor`, or print switcher paths. Use `--choice` for scripts and non-interactive terminals.
 
 ## Terminal Workspaces
 
@@ -340,7 +363,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
+On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
 
 Keep the shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
@@ -358,6 +381,7 @@ Generated helpers include:
 - `ai-recipe`
 - `ai-adapter`
 - `ai-lite`
+- `ai-menu`
 - `ai-agent`
 - `ai-session`
 - `ai-workspace`

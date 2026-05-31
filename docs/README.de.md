@@ -69,6 +69,7 @@ Nach der Einrichtung die Shell-Konfiguration neu laden, falls der Installer dazu
 ```powershell
 ai-list
 ai-lite
+ai-menu
 ai-use code-fast
 ai-status
 ai-recall
@@ -146,6 +147,9 @@ ai-lite --dry-run
 ai-lite --fix
 ai-lite --prompt
 ai-lite --undo
+ai-menu
+ai-menu --list
+ai-menu --choice recommend
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -261,7 +265,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-Unter Linux, macOS und WSL installiert `install-unix` standardmaessig ausfuehrbare Shims wie `ai-workspace`, `ai-agent`, `ai-wup` und `ai-wgo` in `~/.local/bin`. Diese Shims sind wichtig fuer Agent-Bridge-Befehle und nicht-interaktive Shells.
+Unter Linux, macOS und WSL installiert `install-unix` standardmaessig ausfuehrbare Shims wie `ai-lite`, `ai-menu`, `ai-workspace`, `ai-agent`, `ai-wup` und `ai-wgo` in `~/.local/bin`. Diese Shims sind wichtig fuer Agent-Bridge-Befehle und nicht-interaktive Shells.
 
 ## Gemeinsamer Speicher
 

@@ -98,6 +98,9 @@ def main() -> int:
         "python tests/test_lite_workflow.py",
         "ai-workspace",
         "ai-lite",
+        "ai-menu",
+        "ai-menu --list",
+        "ai-menu --choice recommend",
         "ai-agent",
         "install-bin",
         "Ayatori Nexus",
@@ -166,12 +169,12 @@ def main() -> int:
                 fail(f"{relative} is missing installer next-step hint: {expected}")
 
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
-    for command in ["about", "ayatori", "lite", "ai-lite", "all_common", "--all-common", "--undo", "--prompt", "--fix", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "lite", "ai-lite", "menu", "ai-menu", "--choice", "--list", "lite-dry-run", "all_common", "--all-common", "--undo", "--prompt", "--fix", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 
     tests = (root / "tests" / "test_lite_workflow.py").read_text(encoding="utf-8")
-    for expected in ["agent", "recommend", "lite", "--all-common", "--undo", "fixtures"]:
+    for expected in ["agent", "recommend", "lite", "menu", "lite-dry-run", "prompt", "--all-common", "--undo", "fixtures"]:
         if expected not in tests:
             fail(f"test_lite_workflow.py is missing expected coverage text: {expected}")
 
