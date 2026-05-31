@@ -10,6 +10,8 @@
 
 Ayatori Nexus is the codename for CLI Model Switcher: a local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
 
+The current design was compared against [LLM](https://github.com/simonw/llm), [AIChat](https://github.com/sigoden/aichat), and [OpenCode](https://github.com/anomalyco/opencode). See [Reference Analysis](docs/REFERENCE_ANALYSIS.md).
+
 ## Shortest Path
 
 Use this path if you only want the simple agent bridge:
@@ -32,6 +34,7 @@ Prefer a menu? Run:
 ai-menu
 ai-menu --list
 ai-menu --choice recommend
+ai-report
 ```
 
 ## What It Does
@@ -43,6 +46,7 @@ ai-menu --choice recommend
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
 - Offer `ai-lite` as a minimal one-command path for users who only want project agent-bridge setup.
 - Offer `ai-menu` as a small numbered menu for common setup, diagnosis, and bridge actions.
+- Offer `ai-report` as a readiness matrix for all configured profiles, env refs, API presets, model capabilities, commands, and memory paths.
 - Open several agents in one terminal workspace with `ai-workspace`, then switch between Codex, Claude, OpenCode, or recipes from that workspace.
 - Start and track AI CLI sessions through tmux, Windows Terminal, PowerShell windows, or printable fallback commands.
 - Audit state and memory for direct-looking secrets before export or migration.
@@ -168,9 +172,23 @@ ai-menu --list
 ai-menu --choice lite-dry-run
 ai-menu --choice recommend
 ai-menu --choice prompt
+ai-menu --choice report
 ```
 
 The menu can preview or install Lite bridge files, print the already-running-agent prompt, show project recommendations, list supported platforms, run `doctor`, or print switcher paths. Use `--choice` for scripts and non-interactive terminals.
+
+## Readiness Report
+
+Use `ai-report` before switching machines, sharing setup instructions, or debugging a profile:
+
+```powershell
+ai-report
+ai-report --profile opencode-openrouter
+ai-report --json
+ai-report --strict
+```
+
+The report checks command availability, API presets, base URLs, API key environment references, local model capability metadata, and memory paths without printing secret values.
 
 ## Terminal Workspaces
 
@@ -363,7 +381,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
+On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-report`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
 
 Keep the shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
@@ -382,6 +400,7 @@ Generated helpers include:
 - `ai-adapter`
 - `ai-lite`
 - `ai-menu`
+- `ai-report`
 - `ai-agent`
 - `ai-session`
 - `ai-workspace`

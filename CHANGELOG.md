@@ -9,6 +9,8 @@ This project currently follows a lightweight release format while it is still a 
 ### Added
 
 - `menu` / `ai-menu`, a compact numbered menu for Lite setup, project recommendations, supported platforms, already-running-agent prompt text, doctor checks, and path lookup.
+- `report` / `ai-report`, a profile readiness matrix inspired by reviewed CLI AI tools, with JSON and strict modes.
+- Reference analysis for LLM, AIChat, and OpenCode under `docs/REFERENCE_ANALYSIS.md`.
 
 ## [0.4.0] - 2026-05-31
 

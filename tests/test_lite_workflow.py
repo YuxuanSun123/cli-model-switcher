@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,20 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=True,
+    )
+
+
+def run_cli_env(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    merged_env = os.environ.copy()
+    merged_env.update(env)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        env=merged_env,
     )
 
 
@@ -108,7 +123,7 @@ def test_undo_preview() -> None:
 
 def test_menu_shortcuts() -> None:
     listed = run_cli("menu", "--list").stdout
-    for expected in ["lite-dry-run", "recommend", "prompt", "platforms"]:
+    for expected in ["lite-dry-run", "recommend", "prompt", "platforms", "report"]:
         if expected not in listed:
             raise AssertionError(f"menu --list: expected {expected!r} in output")
 
@@ -127,11 +142,31 @@ def test_menu_shortcuts() -> None:
             raise AssertionError(f"menu recommend: unexpected output\n{recommend}")
 
 
+def test_readiness_report() -> None:
+    with tempfile.TemporaryDirectory(prefix="ai-report-") as raw:
+        home = Path(raw) / "switcher-home"
+        payload = json.loads(run_cli_env({"AI_CLI_SWITCHER_HOME": str(home)}, "report", "--json").stdout)
+        names = [item.get("name") for item in payload.get("profiles", [])]
+        for expected in ["codex", "claude", "opencode"]:
+            if expected not in names:
+                raise AssertionError(f"report --json: expected profile {expected!r} in {names}")
+        codex = next(item for item in payload["profiles"] if item.get("name") == "codex")
+        check_names = [item.get("name") for item in codex.get("checks", [])]
+        for expected in ["command", "API key", "memory"]:
+            if expected not in check_names:
+                raise AssertionError(f"report codex: expected check {expected!r} in {check_names}")
+
+        one = json.loads(run_cli_env({"AI_CLI_SWITCHER_HOME": str(home)}, "report", "--profile", "codex", "--json").stdout)
+        if [item.get("name") for item in one.get("profiles", [])] != ["codex"]:
+            raise AssertionError(f"report --profile codex: unexpected profiles {one.get('profiles')}")
+
+
 def main() -> int:
     test_fixture_recommendations()
     test_mixed_and_common_modes()
     test_undo_preview()
     test_menu_shortcuts()
+    test_readiness_report()
     print("Lite workflow fixtures passed.")
     return 0
 

@@ -281,6 +281,7 @@ POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ai-adapter": ["adapter"],
     "ai-lite": ["lite"],
     "ai-menu": ["menu"],
+    "ai-report": ["report"],
     "ai-agent": ["agent"],
     "ai-session": ["session"],
     "ai-workspace": ["workspace"],
@@ -1951,11 +1952,12 @@ def about_payload() -> dict[str, Any]:
         "home": str(APP_DIR),
         "state": str(STATE_PATH),
         "script": str(SCRIPT_PATH),
-        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-lite", "ai-menu"],
+        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-lite", "ai-menu", "ai-report"],
         "common_commands": [
             "ayatori about",
             "ayatori status",
             "ai-menu",
+            "ai-report",
             "ai-lite",
             "ayatori workspace up",
             "ayatori agent prompt",
@@ -3298,6 +3300,11 @@ def menu_items() -> list[dict[str, str]]:
             "detail": "Show supported agent platforms and rule-file paths.",
         },
         {
+            "key": "report",
+            "label": "Show readiness report",
+            "detail": "Summarize every profile's command, env, API, model, and memory readiness.",
+        },
+        {
             "key": "doctor",
             "label": "Run doctor check",
             "detail": "Check switcher state, memory paths, and active profile health.",
@@ -3388,6 +3395,9 @@ def cmd_menu(args: argparse.Namespace) -> None:
         return
     if key == "platforms":
         print_agent_platforms(root, None, False, bool(getattr(args, "dir", None)))
+        return
+    if key == "report":
+        cmd_report(argparse.Namespace(dir=str(root), profile=None, json=False, strict=False))
         return
     if key == "doctor":
         cmd_doctor(argparse.Namespace(fix=False, json=False))
@@ -4615,6 +4625,10 @@ function ai-menu {{
   Invoke-AiCliSwitcher menu @args
 }}
 
+function ai-report {{
+  Invoke-AiCliSwitcher report @args
+}}
+
 function ai-agent {{
   Invoke-AiCliSwitcher agent @args
 }}
@@ -4791,6 +4805,10 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} menu %*
 """,
+        "ai-report.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} report %*
+""",
         "ai-agent.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} agent %*
@@ -4940,6 +4958,7 @@ ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
 ai-lite() {{ _ai_cli_switcher lite "$@"; }}
 ai-menu() {{ _ai_cli_switcher menu "$@"; }}
+ai-report() {{ _ai_cli_switcher report "$@"; }}
 ai-agent() {{ _ai_cli_switcher agent "$@"; }}
 ai-session() {{ _ai_cli_switcher session "$@"; }}
 ai-workspace() {{ _ai_cli_switcher workspace "$@"; }}
@@ -5015,6 +5034,7 @@ function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
 function ai-lite; _ai_cli_switcher lite $argv; end
 function ai-menu; _ai_cli_switcher menu $argv; end
+function ai-report; _ai_cli_switcher report $argv; end
 function ai-agent; _ai_cli_switcher agent $argv; end
 function ai-session; _ai_cli_switcher session $argv; end
 function ai-workspace; _ai_cli_switcher workspace $argv; end
@@ -5719,6 +5739,196 @@ def cmd_memory(args: argparse.Namespace) -> None:
     raise SystemExit(f"Unknown memory action {args.action!r}")
 
 
+def aggregate_check_status(checks: list[dict[str, Any]]) -> str:
+    rank = {"ok": 0, "skip": 0, "warn": 1, "fail": 2}
+    worst = max((rank.get(str(item.get("status")), 1) for item in checks), default=0)
+    if worst >= 2:
+        return "fail"
+    if worst == 1:
+        return "warn"
+    return "ok"
+
+
+def profile_model_capabilities(state: dict[str, Any], profile: dict[str, Any]) -> tuple[dict[str, Any], str | None, str | None]:
+    capabilities = dict(profile.get("model_capabilities") or {})
+    alias = str(profile.get("model_alias") or "") or None
+    provider = normalize_provider_name(str(profile.get("api_provider") or profile.get("provider") or "")) or None
+    model = str(profile.get("model") or "")
+    aliases = state.get("model_aliases", {})
+    if not capabilities and model in aliases:
+        item = aliases.get(model, {})
+        if isinstance(item, dict):
+            alias = model
+            provider = normalize_provider_name(str(item.get("provider") or "")) or provider
+            model = str(item.get("model") or model)
+            capabilities = dict(item.get("capabilities") or {})
+    if not capabilities and provider:
+        capabilities = dict(MODEL_REGISTRY.get(provider, {}).get(model, {}))
+    return capabilities, provider, alias
+
+
+def profile_readiness(state: dict[str, Any], name: str, profile: dict[str, Any]) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+    command = str(profile.get("command") or "")
+    command_path = shutil.which(command) if command else None
+    add_check(checks, "ok" if command_path else "warn", "command", command_path or f"{command or '<missing>'} not found on PATH")
+
+    api_provider = str(profile.get("api_provider") or "")
+    api_kind = str(profile.get("api_kind") or "")
+    if api_provider:
+        add_check(checks, "ok", "api preset", f"{api_provider} ({api_kind or 'unspecified'})")
+    else:
+        add_check(checks, "warn", "api preset", "not configured; profile relies on native CLI defaults")
+
+    base_key, base_url, base_ref = profile_base_url(profile)
+    parsed = urllib.parse.urlparse(base_url or "")
+    if base_key and base_url and parsed.scheme in {"http", "https"} and parsed.netloc:
+        source = f"${base_ref}" if base_ref else base_key
+        add_check(checks, "ok", "base URL", f"{source} -> {base_url}")
+    elif base_key:
+        add_check(checks, "warn", "base URL", f"{base_key} is unset or invalid")
+    elif api_provider and api_kind != "azure-openai":
+        add_check(checks, "warn", "base URL", "no API base URL variable found")
+
+    key_name, api_key, key_ref = profile_api_key(profile)
+    dummy_key = api_key in {"ollama", "lm-studio"}
+    if key_name and (api_key or dummy_key):
+        source = f"${key_ref}" if key_ref else key_name
+        add_check(checks, "ok", "API key", f"{source} available")
+    elif key_name and key_ref:
+        add_check(checks, "warn", "API key", f"${key_ref} missing in current shell")
+    elif api_provider and api_kind not in {"openai-compatible-local"}:
+        add_check(checks, "warn", "API key", "no API key variable found")
+
+    env_refs: list[dict[str, Any]] = []
+    for key, value in sorted((profile.get("env", {}) or {}).items()):
+        key_text = str(key)
+        ref = env_reference_name(value)
+        if ref:
+            present = os.environ.get(ref) is not None
+            env_refs.append({"key": key_text, "ref": ref, "status": "ok" if present else "warn"})
+        elif looks_like_api_key_key(key_text):
+            env_refs.append({"key": key_text, "ref": None, "status": "warn", "direct": True})
+            add_check(checks, "warn", "stored API key", f"{key_text} is stored directly; prefer ${key_text}")
+    missing_refs = [item["ref"] for item in env_refs if item["status"] == "warn" and item.get("ref")]
+    if missing_refs:
+        add_check(checks, "warn", "env refs", f"missing: {', '.join(sorted(set(missing_refs)))}")
+
+    memory_value = str(profile.get("memory_path") or CONTEXT_MEMORY_PATH)
+    if "${" in memory_value:
+        memory_status = "skip"
+        memory_detail = "portable memory reference"
+    else:
+        memory_path = Path(memory_value).expanduser()
+        memory_status = "ok" if memory_path.exists() else "warn"
+        memory_detail = str(memory_path) if memory_path.exists() else f"missing: {memory_path}"
+    add_check(checks, memory_status, "memory", memory_detail)
+
+    capabilities, capability_provider, model_alias = profile_model_capabilities(state, profile)
+    if capabilities:
+        traits = ", ".join(key for key in ["coding", "vision", "tools", "reasoning"] if capabilities.get(key) is True)
+        context = capabilities.get("context", "unknown")
+        add_check(checks, "ok", "model capabilities", f"context={context}" + (f" {traits}" if traits else ""))
+    else:
+        add_check(checks, "skip", "model capabilities", "not in local registry")
+
+    return {
+        "name": name,
+        "status": aggregate_check_status(checks),
+        "provider": profile.get("provider"),
+        "command": command,
+        "command_path": command_path,
+        "model": profile.get("model"),
+        "model_alias": model_alias,
+        "capability_provider": capability_provider,
+        "api_provider": api_provider or None,
+        "api_kind": api_kind or None,
+        "memory": memory_value,
+        "env_refs": env_refs,
+        "capabilities": capabilities,
+        "checks": checks,
+    }
+
+
+def readonly_effective_state(start: Path | None = None) -> tuple[dict[str, Any], Path | None]:
+    if STATE_PATH.exists():
+        state = normalize_state(read_json(STATE_PATH))
+    else:
+        state = normalize_state({"active": "codex", "profiles": clone_default_profiles(), "aliases": {}, "model_aliases": clone_model_aliases()})
+    project_config, config_path = load_project_config(start)
+    if project_config:
+        merged = json.loads(json.dumps(state))
+        merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
+        merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
+        if "workspace_targets" in project_config:
+            merged["workspace_targets"] = project_config["workspace_targets"]
+        if project_config.get("active"):
+            merged["active"] = project_config["active"]
+        merged["_project_config"] = str(config_path)
+        return normalize_state(merged), config_path
+    return state, None
+
+
+def readiness_report_payload(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else None
+    state, config_path = readonly_effective_state(root)
+    profiles = state.get("profiles", {})
+    selected = list(profiles)
+    if getattr(args, "profile", None):
+        resolved = resolve_profile_name(state, args.profile)
+        if resolved not in profiles:
+            available = ", ".join(sorted(profiles))
+            raise SystemExit(f"Unknown profile {args.profile!r}. Available: {available}")
+        selected = [resolved]
+    profile_reports = [profile_readiness(state, name, profiles[name]) for name in selected if name in profiles]
+    status = aggregate_check_status([{"status": item["status"], "name": item["name"], "detail": ""} for item in profile_reports])
+    next_actions: list[str] = []
+    for item in profile_reports:
+        for check in item["checks"]:
+            if check["status"] not in {"warn", "fail"}:
+                continue
+            if check["name"] == "command":
+                next_actions.append(f"Install or update command for profile {item['name']}: {item['command']}")
+            elif check["name"] in {"API key", "env refs"}:
+                next_actions.append(f"Set missing env vars, then run: ai-api test {item['name']} --skip-network")
+            elif check["name"] == "memory":
+                next_actions.append("Run: ai-doctor --fix")
+            elif check["name"] == "api preset":
+                next_actions.append(f"Attach an API preset if needed: ai-api apply {item['name']} openai --use")
+    next_actions = dedupe_preserve_order(next_actions)
+    return {
+        "status": status,
+        "active": state.get("active"),
+        "project_config": str(config_path) if config_path else None,
+        "profiles": profile_reports,
+        "next_actions": next_actions,
+    }
+
+
+def cmd_report(args: argparse.Namespace) -> None:
+    payload = readiness_report_payload(args)
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print("Ayatori readiness report")
+        print(f"Status: {payload['status']}")
+        print(f"Active: {payload.get('active')}")
+        if payload.get("project_config"):
+            print(f"Project config: {payload['project_config']}")
+        print("Profiles:")
+        for item in payload["profiles"]:
+            api = item.get("api_provider") or "native"
+            print(f"  [{item['status']}] {item['name']}: {item['command']} ({item.get('model')}) via {api}")
+            for check in item["checks"]:
+                print(f"    [{check['status']}] {check['name']}: {check['detail']}")
+        if payload["next_actions"]:
+            print("Next actions:")
+            for action in payload["next_actions"]:
+                print(f"  {action}")
+    if args.strict and payload["status"] != "ok":
+        raise SystemExit(1)
+
+
 def cmd_doctor(args: argparse.Namespace) -> None:
     events: list[dict[str, str]] = []
     state = repair_global_state(args.fix, events)
@@ -5803,6 +6013,13 @@ def build_parser() -> argparse.ArgumentParser:
     menu_parser.add_argument("--dir", help="Project directory for project-aware menu actions. Defaults to the current directory.")
     menu_parser.add_argument("--list", action="store_true", help="List menu items without prompting or running an action.")
     menu_parser.set_defaults(func=cmd_menu)
+
+    report_parser = sub.add_parser("report", help="Show a readiness matrix for configured profiles.")
+    report_parser.add_argument("--dir", help="Project directory whose local config should be included.")
+    report_parser.add_argument("--profile", help="Inspect one profile or alias instead of all profiles.")
+    report_parser.add_argument("--json", action="store_true")
+    report_parser.add_argument("--strict", action="store_true", help="Exit non-zero when any profile has warnings or failures.")
+    report_parser.set_defaults(func=cmd_report)
 
     list_parser = sub.add_parser("list", help="List profiles.")
     list_parser.set_defaults(func=cmd_list)

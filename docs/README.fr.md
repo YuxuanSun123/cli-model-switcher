@@ -70,6 +70,7 @@ Après l'installation, rechargez le profil shell si l'installateur le demande :
 ai-list
 ai-lite
 ai-menu
+ai-report
 ai-use code-fast
 ai-status
 ai-recall
@@ -150,6 +151,8 @@ ai-lite --undo
 ai-menu
 ai-menu --list
 ai-menu --choice recommend
+ai-report
+ai-report --json
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -265,7 +268,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-Sous Linux, macOS et WSL, `install-unix` installe aussi des shims exécutables comme `ai-lite`, `ai-menu`, `ai-workspace`, `ai-agent`, `ai-wup` et `ai-wgo` dans `~/.local/bin`. Ces shims sont utiles pour les ponts d'agent et les shells non interactifs.
+Sous Linux, macOS et WSL, `install-unix` installe aussi des shims exécutables comme `ai-lite`, `ai-menu`, `ai-report`, `ai-workspace`, `ai-agent`, `ai-wup` et `ai-wgo` dans `~/.local/bin`. Ces shims sont utiles pour les ponts d'agent et les shells non interactifs.
 
 ## Mémoire Partagée
 
