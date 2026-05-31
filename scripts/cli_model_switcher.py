@@ -8,7 +8,9 @@ import fnmatch
 import json
 import os
 import re
+import shlex
 import shutil
+import signal
 import socket
 import string
 import subprocess
@@ -26,6 +28,9 @@ LEGACY_MEMORY_PATH = APP_DIR / "memory.md"
 MEMORY_DIR = APP_DIR / "memory"
 TEMPLATES_DIR = APP_DIR / "templates"
 PROVIDERS_DIR = APP_DIR / "providers.d"
+PRESET_MANIFESTS_DIR = APP_DIR / "preset-manifests"
+REQUEST_LOG_PATH = APP_DIR / "requests.ndjson"
+GATEWAY_LOG_PATH = APP_DIR / "gateway.log"
 GLOBAL_MEMORY_PATH = MEMORY_DIR / "global.md"
 SESSION_MEMORY_PATH = MEMORY_DIR / "session.md"
 CONTEXT_MEMORY_PATH = MEMORY_DIR / "context.md"
@@ -37,6 +42,16 @@ APP_CODENAME = "Ayatori Nexus"
 APP_TAGLINE = "A unified command-line hub for switching AI coding agents and sharing context across tools."
 WORKSPACE_FALLBACK_TARGETS = ["codex", "claude", "opencode"]
 WORKSPACE_TARGET_PRIORITY = ["codex", "claude", "opencode-openrouter", "opencode", "gemini", "local-ollama", "local-lmstudio"]
+ROUTE_SLOT_PRESETS: dict[str, dict[str, str]] = {
+    "default": {"description": "General coding and chat"},
+    "fast": {"description": "Low-latency everyday work"},
+    "think": {"description": "Reasoning-heavy planning or debugging"},
+    "long": {"description": "Long-context reading and refactors"},
+    "cheap": {"description": "Cost-sensitive routine work"},
+    "local": {"description": "Local or private model workflow"},
+    "critique": {"description": "Second-pass review and critique"},
+    "background": {"description": "Background or low-priority agent work"},
+}
 AGENT_BRIDGE_MARKER_START = "<!-- >>> ai-cli-switcher agent-bridge >>> -->"
 AGENT_BRIDGE_MARKER_END = "<!-- <<< ai-cli-switcher agent-bridge <<< -->"
 AGENT_BRIDGE_TARGET_FILES: dict[str, list[str]] = {
@@ -290,6 +305,10 @@ POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ai-menu": ["menu"],
     "ai-report": ["report"],
     "ai-agent": ["agent"],
+    "ai-route": ["route"],
+    "ai-gateway": ["gateway"],
+    "ai-preset": ["preset"],
+    "ai-request": ["request"],
     "ai-session": ["session"],
     "ai-workspace": ["workspace"],
     "ai-ws": ["workspace"],
@@ -907,6 +926,149 @@ def external_provider_payloads() -> tuple[dict[str, dict[str, Any]], dict[str, s
     return presets, aliases
 
 
+def validate_preset_manifest_payload(payload: dict[str, Any], label: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise SystemExit(f"Preset manifest {label} must be a JSON object.")
+    if not payload.get("name") and not isinstance(payload.get("presets"), dict):
+        raise SystemExit(f"Preset manifest {label} must contain either 'name' or 'presets'.")
+    if payload.get("name") and not provider_name_is_valid(str(payload["name"]).strip().lower()):
+        raise SystemExit(f"Preset manifest {label} has an invalid name {payload['name']!r}.")
+
+    if isinstance(payload.get("presets"), dict):
+        presets = payload["presets"]
+    else:
+        name = str(payload["name"]).strip().lower()
+        presets = {name: {k: v for k, v in payload.items() if k not in {"name", "alias", "aliases"}}}
+
+    for raw_name, raw_preset in presets.items():
+        name = str(raw_name).strip().lower()
+        if not provider_name_is_valid(name):
+            raise SystemExit(f"Invalid provider preset name {raw_name!r} in manifest {label}.")
+        if not isinstance(raw_preset, dict):
+            raise SystemExit(f"Provider preset {name!r} in manifest {label} must be an object.")
+        env = raw_preset.get("env", {})
+        if env is not None and not isinstance(env, dict):
+            raise SystemExit(f"Provider preset {name!r} in manifest {label} has non-object env.")
+        for key, value in (env or {}).items():
+            text = str(value)
+            if env_reference_name(text):
+                continue
+            for secret_name, pattern in SECRET_PATTERNS:
+                if pattern.search(text):
+                    raise SystemExit(f"Refusing possible {secret_name} in manifest {label} env {key!r}. Use ${{ENV_NAME}}.")
+    return payload
+
+
+def read_preset_manifest(path: Path) -> dict[str, Any]:
+    payload = read_json(path)
+    return validate_preset_manifest_payload(payload, str(path))
+
+
+def preset_manifest_name(payload: dict[str, Any], fallback: str) -> str:
+    if payload.get("name"):
+        return config_safe_name(str(payload["name"]))
+    if isinstance(payload.get("package"), dict) and payload["package"].get("name"):
+        return config_safe_name(str(payload["package"]["name"]))
+    return config_safe_name(fallback)
+
+
+def cmd_preset(args: argparse.Namespace) -> None:
+    if args.action == "path":
+        payload = {"providers_dir": str(PROVIDERS_DIR), "manifests_dir": str(PRESET_MANIFESTS_DIR)}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(f"providers.d: {PROVIDERS_DIR}")
+            print(f"manifests: {PRESET_MANIFESTS_DIR}")
+        return
+
+    if args.action == "list":
+        external, aliases = external_provider_payloads()
+        payload = {
+            "providers_dir": str(PROVIDERS_DIR),
+            "presets": external,
+            "aliases": aliases,
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not external:
+            print("No installed external preset manifests.")
+            return
+        for name, preset in sorted(external.items()):
+            print(f"{name}: {preset.get('label')} [{preset.get('kind')}] source={preset.get('source')}")
+        if aliases:
+            print("Aliases:")
+            for alias, target in sorted(aliases.items()):
+                print(f"  {alias} -> {target}")
+        return
+
+    if args.action == "show":
+        if not args.name:
+            raise SystemExit("preset show requires a preset name or manifest path.")
+        target = Path(args.name).expanduser()
+        if target.exists():
+            payload = read_preset_manifest(target)
+        else:
+            name, preset = clone_api_preset(args.name)
+            payload = {"name": name, "presets": {name: {k: v for k, v in preset.items() if k != "source"}}}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print(f"Preset manifest: {payload.get('name') or args.name}")
+        presets = payload.get("presets")
+        if isinstance(presets, dict):
+            for name, preset in presets.items():
+                print(f"  {name}: {preset.get('label', name)} [{preset.get('kind', 'openai-compatible')}]")
+        else:
+            print(f"  {payload.get('name')}: {payload.get('label', payload.get('name'))} [{payload.get('kind', 'openai-compatible')}]")
+        return
+
+    if args.action == "install":
+        raw_input = args.input or args.name
+        if not raw_input:
+            raise SystemExit("preset install requires a local JSON manifest path.")
+        source = Path(raw_input).expanduser()
+        if str(raw_input).startswith(("http://", "https://")):
+            raise SystemExit("preset install currently accepts a local JSON manifest path. Download remote manifests before installing.")
+        if not source.exists():
+            raise SystemExit(f"Preset manifest not found: {source}")
+        payload = read_preset_manifest(source)
+        name = config_safe_name(args.package_name or preset_manifest_name(payload, source.stem))
+        PROVIDERS_DIR.mkdir(parents=True, exist_ok=True)
+        PRESET_MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
+        destination = PROVIDERS_DIR / f"{name}.json"
+        if destination.exists() and not args.force:
+            raise SystemExit(f"Preset manifest {destination} already exists. Use --force to replace it.")
+        destination.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        archive = PRESET_MANIFESTS_DIR / f"{name}.json"
+        archive.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"Installed preset manifest {name}: {destination}")
+        return
+
+    if args.action == "export":
+        if not args.name:
+            raise SystemExit("preset export requires a preset name.")
+        if not args.output:
+            raise SystemExit("preset export requires --output PATH.")
+        name, preset = clone_api_preset(args.name)
+        manifest = {
+            "name": args.package_name or name,
+            "version": args.version or "1.0.0",
+            "description": args.description or f"{preset.get('label', name)} provider preset",
+            "presets": {
+                name: {k: v for k, v in preset.items() if k != "source"}
+            },
+        }
+        output = Path(args.output).expanduser()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"Exported preset manifest {name}: {output}")
+        return
+
+    raise SystemExit(f"Unknown preset action {args.action!r}")
+
+
 def all_api_presets() -> dict[str, dict[str, Any]]:
     external, _ = external_provider_payloads()
     merged = json.loads(json.dumps(API_PRESETS))
@@ -1286,6 +1448,9 @@ def normalize_state(state: dict[str, Any]) -> dict[str, Any]:
     state.setdefault("sessions", {})
     state.setdefault("workspaces", {})
     state.setdefault("workspace_targets", [])
+    state.setdefault("routes", {})
+    state.setdefault("gateways", {})
+    state.setdefault("api_probes", {})
     state.setdefault("policies", [])
     model_aliases = state.setdefault("model_aliases", {})
     for alias, payload in clone_model_aliases().items():
@@ -1363,6 +1528,8 @@ def effective_state(start: Path | None = None) -> tuple[dict[str, Any], Path | N
         merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
         merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
         merged["policies"] = list(state.get("policies", [])) + list(project_config.get("policies", []))
+        merged.setdefault("routes", {}).update(project_config.get("routes", {}))
+        merged.setdefault("gateways", {}).update(project_config.get("gateways", {}))
         if "workspace_targets" in project_config:
             merged["workspace_targets"] = project_config["workspace_targets"]
         if project_config.get("active"):
@@ -1656,6 +1823,10 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
         "function ai-recipe",
         "function ai-adapter",
         "function ai-agent",
+        "function ai-route",
+        "function ai-gateway",
+        "function ai-preset",
+        "function ai-request",
         "function ai-session",
         "function ai-workspace",
         "function ai-ws",
@@ -1691,6 +1862,10 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
             "ai-recipe.cmd",
             "ai-adapter.cmd",
             "ai-agent.cmd",
+            "ai-route.cmd",
+            "ai-gateway.cmd",
+            "ai-preset.cmd",
+            "ai-request.cmd",
             "ai-session.cmd",
             "ai-workspace.cmd",
             "ai-ws.cmd",
@@ -1713,7 +1888,7 @@ def check_wrapper_staleness(fix: bool, events: list[dict[str, str]]) -> None:
     if os.name != "nt":
         bin_dir = Path.home() / ".local" / "bin"
         if bin_dir.exists():
-            required_bin = ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-workspace", "ai-agent", "ai-wup", "ai-wgo", "ai-wpick"]
+            required_bin = ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-workspace", "ai-agent", "ai-route", "ai-gateway", "ai-preset", "ai-request", "ai-wup", "ai-wgo", "ai-wpick"]
             missing_bin = [name for name in required_bin if not (bin_dir / name).exists()]
             if missing_bin and fix:
                 cmd_install_bin(argparse.Namespace(bin_dir=str(bin_dir), dry_run=False))
@@ -2072,6 +2247,10 @@ def about_payload() -> dict[str, Any]:
             "ai-policy",
             "ai-template",
             "ai-config",
+            "ai-route",
+            "ai-gateway",
+            "ai-preset",
+            "ai-request",
         ],
         "common_commands": [
             "ayatori about",
@@ -2081,6 +2260,10 @@ def about_payload() -> dict[str, Any]:
             "ai-policy list",
             "ai-template list",
             "ai-config explain",
+            "ai-route slots",
+            "ai-api probe --skip-network",
+            "ai-gateway status",
+            "ai-request summary",
             "ai-lite",
             "ayatori workspace up",
             "ayatori agent prompt",
@@ -2643,6 +2826,9 @@ def cmd_paths(args: argparse.Namespace) -> None:
         "state": str(STATE_PATH),
         "templates": str(TEMPLATES_DIR),
         "providers": str(PROVIDERS_DIR),
+        "preset_manifests": str(PRESET_MANIFESTS_DIR),
+        "request_log": str(REQUEST_LOG_PATH),
+        "gateway_log": str(GATEWAY_LOG_PATH),
         "global_memory": str(GLOBAL_MEMORY_PATH),
         "session_memory": str(SESSION_MEMORY_PATH),
         "context_memory": str(CONTEXT_MEMORY_PATH),
@@ -2778,13 +2964,16 @@ def cmd_import(args: argparse.Namespace) -> None:
         remapped_aliases[alias] = profile_map.get(str(target), target)
     _, alias_notes = merge_named_mapping(state.setdefault("aliases", {}), remapped_aliases, args.merge_policy)
     _, model_alias_notes = merge_named_mapping(state.setdefault("model_aliases", {}), imported.get("model_aliases", {}), args.merge_policy)
+    _, route_notes = merge_named_mapping(state.setdefault("routes", {}), imported.get("routes", {}), args.merge_policy)
+    _, gateway_notes = merge_named_mapping(state.setdefault("gateways", {}), imported.get("gateways", {}), args.merge_policy)
+    _, probe_notes = merge_named_mapping(state.setdefault("api_probes", {}), imported.get("api_probes", {}), args.merge_policy)
     if args.active:
         imported_active = str(imported.get("active", state.get("active")))
         state["active"] = profile_map.get(imported_active, imported_active)
     state, _, _ = repair_state_object(normalize_state(state))
     save_state(state)
     print(f"Merged config from {path} using {args.merge_policy} policy")
-    for note in [*profile_notes, *alias_notes, *model_alias_notes]:
+    for note in [*profile_notes, *alias_notes, *model_alias_notes, *route_notes, *gateway_notes, *probe_notes]:
         print(f"- {note}")
 
 
@@ -2836,6 +3025,574 @@ def resolve_named_profile(name: str | None = None, start: Path | None = None) ->
         available = ", ".join(sorted(state.get("profiles", {})))
         raise SystemExit(f"Unknown profile {target!r}. Available: {available}")
     return state, resolved, profile, config_path
+
+
+def config_safe_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip().lower()).strip("-")
+    return cleaned or "item"
+
+
+def route_slot_name(value: str) -> str:
+    slot = config_safe_name(value)
+    if not re.match(r"^[a-z0-9][a-z0-9_.-]*$", slot):
+        raise SystemExit(f"Invalid route slot {value!r}")
+    return slot
+
+
+def route_profile_name(slot: str) -> str:
+    return f"route-{route_slot_name(slot)}"
+
+
+def route_storage(args: argparse.Namespace, state: dict[str, Any]) -> tuple[dict[str, Any], Any, str, Path | None]:
+    if getattr(args, "project", False):
+        config, config_path = load_project_config()
+        root = config_path.parent if config_path else Path.cwd().resolve()
+        config.setdefault("routes", {})
+        save = lambda: save_project_config(config, root)
+        return config, save, f"project:{root / PROJECT_CONFIG_NAME}", root
+    state.setdefault("routes", {})
+    save = lambda: save_state(state)
+    return state, save, "global", None
+
+
+def route_target_kind(state: dict[str, Any], target: str) -> tuple[str, str]:
+    if target in state.get("profiles", {}) or target in state.get("aliases", {}) or target in STRATEGY_PRESETS or target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+        return "profile", target
+    try:
+        return "api", resolve_api_preset_name(target)
+    except SystemExit as exc:
+        available_profiles = sorted(state.get("profiles", {}))
+        available_apis = sorted(all_api_presets())
+        raise SystemExit(
+            f"Unknown route target {target!r}. Use a profile, alias, strategy, recipe, or API preset. "
+            f"Profiles: {', '.join(available_profiles)}. API presets: {', '.join(available_apis)}"
+        ) from exc
+
+
+def apply_model_reference_to_profile(state: dict[str, Any], profile: dict[str, Any], model: str | None, provider: str | None = None) -> None:
+    if not model:
+        return
+    model_provider, resolved_model, capabilities, alias = resolve_model_reference(state, model, provider or str(profile.get("api_provider") or ""))
+    if model_provider and model_provider in all_api_presets():
+        apply_api_preset_to_profile(profile, model_provider, resolved_model)
+    else:
+        profile["model"] = resolved_model
+    if capabilities:
+        profile["model_capabilities"] = capabilities
+    if alias:
+        profile["model_alias"] = alias
+    else:
+        profile.pop("model_alias", None)
+
+
+def ensure_route_target_profile(state: dict[str, Any], target: str) -> str:
+    if target in STRATEGY_PRESETS:
+        profile_name = ensure_strategy_profile(state, target)
+        if profile_name:
+            return profile_name
+    if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+        profile_name, _ = install_recipe_into_state(state, target, False)
+        return profile_name
+    resolved = resolve_profile_name(state, target)
+    if resolved not in state.get("profiles", {}):
+        available = ", ".join(sorted(state.get("profiles", {})))
+        raise SystemExit(f"Unknown route profile target {target!r}. Available: {available}")
+    return resolved
+
+
+def materialize_route_profile(
+    state: dict[str, Any],
+    effective: dict[str, Any],
+    slot: str,
+    route: dict[str, Any],
+    target_state: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any], bool]:
+    target_state = target_state or state
+    generated_name = str(route.get("profile") or route_profile_name(slot))
+    profiles = target_state.setdefault("profiles", {})
+
+    if route.get("api"):
+        spec = {
+            "provider": route.get("provider") or "opencode",
+            "command": route.get("command") or "opencode",
+            "api": route.get("api"),
+            "model": route.get("model") or None,
+            "memory": route.get("memory") or str(CONTEXT_MEMORY_PATH),
+        }
+        upsert_profile_from_spec(target_state, generated_name, spec)
+        profile = profiles[generated_name]
+        if isinstance(route.get("env"), dict):
+            profile.setdefault("env", {}).update(route["env"])
+        return generated_name, profile, True
+
+    target = str(route.get("target") or "")
+    if not target:
+        raise SystemExit(f"Route slot {slot!r} is missing a target.")
+    profile_name = ensure_route_target_profile(target_state, target)
+    source_profiles = effective.get("profiles", {})
+    source_profile = source_profiles.get(profile_name) or target_state.get("profiles", {}).get(profile_name)
+    if not source_profile:
+        available = ", ".join(sorted(source_profiles))
+        raise SystemExit(f"Route target {target!r} resolved to missing profile {profile_name!r}. Available: {available}")
+    if not route.get("model") and not route.get("provider") and not route.get("command"):
+        return profile_name, source_profile, False
+
+    profile = json.loads(json.dumps(source_profile))
+    if route.get("provider"):
+        profile["provider"] = route["provider"]
+    if route.get("command"):
+        profile["command"] = route["command"]
+    apply_model_reference_to_profile(target_state, profile, str(route.get("model") or ""), str(route.get("api") or profile.get("api_provider") or ""))
+    profiles[generated_name] = profile
+    return generated_name, profile, True
+
+
+def route_payload(state: dict[str, Any], route_state: dict[str, Any], config_path: Path | None = None) -> dict[str, Any]:
+    routes = route_state.get("routes", {})
+    return {
+        "routes": routes,
+        "slots": ROUTE_SLOT_PRESETS,
+        "active": state.get("active"),
+        "project_config": str(config_path) if config_path else None,
+    }
+
+
+def cmd_route(args: argparse.Namespace) -> None:
+    state = normalize_state(ensure_state())
+    effective, config_path = effective_state()
+    routes = effective.setdefault("routes", {})
+
+    if args.action == "slots":
+        if args.json:
+            print(json.dumps(ROUTE_SLOT_PRESETS, indent=2, ensure_ascii=False))
+            return
+        for slot, spec in ROUTE_SLOT_PRESETS.items():
+            print(f"{slot}: {spec.get('description')}")
+        return
+
+    if args.action == "path":
+        if getattr(args, "project", False):
+            config, config_path = load_project_config()
+            print(config_path or (Path.cwd().resolve() / PROJECT_CONFIG_NAME))
+        else:
+            print(STATE_PATH)
+        return
+
+    if args.action == "list":
+        payload = route_payload(effective, effective, config_path)
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not routes:
+            print("No route slots configured. Try: ai-route set think opencode-openrouter anthropic/claude-sonnet-4.5")
+        for slot, route in sorted(routes.items()):
+            target = route.get("target") or route.get("api")
+            model = f" model={route.get('model')}" if route.get("model") else ""
+            print(f"{slot}: {target}{model}")
+        print("Known slots: " + ", ".join(ROUTE_SLOT_PRESETS))
+        return
+
+    if args.action == "set":
+        if not args.slot or not args.target:
+            raise SystemExit("route set requires SLOT TARGET [MODEL].")
+        slot = route_slot_name(args.slot)
+        target_state, save, scope, _ = route_storage(args, state)
+        kind, resolved_target = route_target_kind(effective, args.target)
+        route: dict[str, Any] = {
+            "kind": kind,
+            "description": args.description or ROUTE_SLOT_PRESETS.get(slot, {}).get("description"),
+        }
+        if kind == "api":
+            route.update({
+                "api": resolved_target,
+                "profile": args.profile or route_profile_name(slot),
+                "provider": args.provider or "opencode",
+                "command": args.command or "opencode",
+            })
+        else:
+            route["target"] = resolved_target
+            if args.profile:
+                route["profile"] = args.profile
+            if args.provider:
+                route["provider"] = args.provider
+            if args.command:
+                route["command"] = args.command
+        if args.model:
+            route["model"] = args.model
+        if args.memory:
+            route["memory"] = args.memory
+        target_state.setdefault("routes", {})[slot] = {k: v for k, v in route.items() if v is not None}
+        save()
+        print(f"Saved route {slot} -> {args.target}" + (f" model={args.model}" if args.model else "") + f" ({scope})")
+        return
+
+    if args.action == "unset":
+        if not args.slot:
+            raise SystemExit("route unset requires SLOT.")
+        slot = route_slot_name(args.slot)
+        target_state, save, scope, _ = route_storage(args, state)
+        if slot not in target_state.get("routes", {}):
+            raise SystemExit(f"Route slot {slot!r} is not configured in {scope}.")
+        target_state["routes"].pop(slot, None)
+        save()
+        print(f"Removed route {slot} ({scope})")
+        return
+
+    if args.action in {"show", "explain", "use"}:
+        if not args.slot:
+            raise SystemExit(f"route {args.action} requires SLOT.")
+        slot = route_slot_name(args.slot)
+        route = routes.get(slot)
+        if not isinstance(route, dict):
+            available = ", ".join(sorted(routes)) or "(none)"
+            raise SystemExit(f"Route slot {slot!r} is not configured. Configured slots: {available}")
+        target_state = state
+        project_config: dict[str, Any] | None = None
+        project_root: Path | None = None
+        if args.project:
+            project_config, project_config_path = load_project_config()
+            project_root = project_config_path.parent if project_config_path else Path.cwd().resolve()
+            project_config.setdefault("profiles", {})
+            target_state = project_config
+        profile_name, profile, generated = materialize_route_profile(state, effective, slot, route, target_state)
+        payload = {
+            "slot": slot,
+            "route": route,
+            "profile": profile_name,
+            "generated_profile": generated,
+            "profile_payload": profile,
+            "project_config": str(config_path) if config_path else None,
+        }
+        if args.action in {"show", "explain"}:
+            if args.json:
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return
+            print(f"route {slot}: {route.get('target') or route.get('api')} -> {profile_name}")
+            print(f"command: {profile.get('command')} model: {profile.get('model')}")
+            if generated:
+                print(f"generated profile: {profile_name}")
+            return
+
+        assert_profile_policy_allowed(normalize_state({**effective, **target_state}), profile_name, profile)
+        if args.project:
+            assert project_config is not None and project_root is not None
+            project_config["active"] = profile_name
+            save_project_config(project_config, project_root)
+            ensure_memory_files(project_root)
+            print(f"Project route active: {slot} -> {profile_name} ({project_root / PROJECT_CONFIG_NAME})")
+        else:
+            state.setdefault("profiles", {}).update(target_state.get("profiles", {}))
+            state["active"] = profile_name
+            save_state(state)
+            print(f"Active route: {slot} -> {profile_name} ({profile.get('model')})")
+        return
+
+    raise SystemExit(f"Unknown route action {args.action!r}")
+
+
+def now_stamp() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def append_request_log(entry: dict[str, Any]) -> dict[str, Any]:
+    REQUEST_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"timestamp": now_stamp(), **entry}
+    with REQUEST_LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return payload
+
+
+def read_request_log() -> list[dict[str, Any]]:
+    if not REQUEST_LOG_PATH.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for line in REQUEST_LOG_PATH.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            item = {"timestamp": None, "kind": "invalid", "raw": line}
+        if isinstance(item, dict):
+            entries.append(item)
+    return entries
+
+
+def request_log_matches(entry: dict[str, Any], args: argparse.Namespace) -> bool:
+    for field in ["profile", "provider", "kind", "status"]:
+        expected = getattr(args, field, None)
+        if expected and str(entry.get(field) or "") != str(expected):
+            return False
+    return True
+
+
+def request_log_summary(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    by_provider: dict[str, int] = {}
+    by_profile: dict[str, int] = {}
+    total_tokens = 0
+    total_cost = 0.0
+    for entry in entries:
+        provider = str(entry.get("provider") or "unknown")
+        profile = str(entry.get("profile") or "unknown")
+        by_provider[provider] = by_provider.get(provider, 0) + 1
+        by_profile[profile] = by_profile.get(profile, 0) + 1
+        for key in ["tokens_in", "tokens_out", "tokens"]:
+            try:
+                total_tokens += int(entry.get(key) or 0)
+            except (TypeError, ValueError):
+                pass
+        try:
+            total_cost += float(entry.get("cost") or 0)
+        except (TypeError, ValueError):
+            pass
+    return {
+        "count": len(entries),
+        "by_provider": dict(sorted(by_provider.items())),
+        "by_profile": dict(sorted(by_profile.items())),
+        "tokens": total_tokens,
+        "cost": round(total_cost, 6),
+    }
+
+
+def cmd_request(args: argparse.Namespace) -> None:
+    if args.action == "path":
+        print(REQUEST_LOG_PATH)
+        return
+    if args.action == "add":
+        entry: dict[str, Any] = {
+            "kind": args.kind or "request",
+            "profile": args.profile,
+            "provider": args.provider,
+            "model": args.model,
+            "status": args.status,
+            "latency_ms": args.latency_ms,
+            "tokens_in": args.tokens_in,
+            "tokens_out": args.tokens_out,
+            "cost": args.cost,
+            "note": " ".join(args.note or []),
+        }
+        payload = append_request_log({k: v for k, v in entry.items() if v not in {None, ""}})
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(f"Logged request event: {payload.get('kind')} {payload.get('profile') or ''} {payload.get('status') or ''}".rstrip())
+        return
+    if args.action == "clear":
+        if REQUEST_LOG_PATH.exists():
+            REQUEST_LOG_PATH.unlink()
+        print(f"Cleared {REQUEST_LOG_PATH}")
+        return
+
+    entries = [entry for entry in read_request_log() if request_log_matches(entry, args)]
+    if args.tail is not None:
+        entries = entries[-max(args.tail, 0):]
+    if args.action == "summary":
+        payload = request_log_summary(entries)
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print(f"requests: {payload['count']}")
+        print(f"tokens: {payload['tokens']}")
+        print(f"cost: {payload['cost']}")
+        if payload["by_provider"]:
+            print("by provider:")
+            for provider, count in payload["by_provider"].items():
+                print(f"  {provider}: {count}")
+        return
+    if args.action == "log":
+        payload = {"path": str(REQUEST_LOG_PATH), "entries": entries}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not entries:
+            print("No request log entries.")
+            return
+        for entry in entries:
+            bits = [
+                str(entry.get("timestamp") or ""),
+                str(entry.get("kind") or "request"),
+                str(entry.get("profile") or ""),
+                str(entry.get("provider") or ""),
+                str(entry.get("model") or ""),
+                str(entry.get("status") or ""),
+            ]
+            print(" ".join(bit for bit in bits if bit))
+        return
+    raise SystemExit(f"Unknown request action {args.action!r}")
+
+
+def split_gateway_command(command: str) -> list[str]:
+    try:
+        return shlex.split(command, posix=os.name != "nt")
+    except ValueError as exc:
+        raise SystemExit(f"Invalid gateway command {command!r}: {exc}") from exc
+
+
+def process_is_running(pid: int | None) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def gateway_record(name: str, state: dict[str, Any]) -> dict[str, Any]:
+    gateways = state.setdefault("gateways", {})
+    record = gateways.setdefault(name, {})
+    record.setdefault("base_url", "http://127.0.0.1:8787/v1")
+    record.setdefault("api_key_env", "AI_GATEWAY_API_KEY")
+    return record
+
+
+def profile_gateway_defaults(profile_name: str) -> dict[str, Any]:
+    _, resolved, profile, _ = resolve_named_profile(profile_name)
+    _, base_url, _ = profile_base_url(profile)
+    key_name, _, key_ref = profile_api_key(profile)
+    return {
+        "profile": resolved,
+        "provider": profile.get("api_provider") or profile.get("provider"),
+        "model": profile.get("model"),
+        "base_url": base_url,
+        "api_key_env": key_ref or key_name,
+    }
+
+
+def gateway_env_record(record: dict[str, Any]) -> dict[str, str]:
+    api_key_env = str(record.get("api_key_env") or "AI_GATEWAY_API_KEY")
+    return {
+        "OPENAI_BASE_URL": str(record.get("base_url") or "http://127.0.0.1:8787/v1"),
+        "OPENAI_API_BASE": str(record.get("base_url") or "http://127.0.0.1:8787/v1"),
+        "OPENAI_API_KEY": env_ref(api_key_env),
+        "AI_GATEWAY_API_KEY_ENV": api_key_env,
+    }
+
+
+def gateway_env_script(record: dict[str, Any], shell: str) -> str:
+    lines: list[str] = []
+    for key, value in gateway_env_record(record).items():
+        ref = env_reference_name(value)
+        if ref:
+            lines.append(emit_env_reference(key, ref, shell))
+        else:
+            lines.append(emit_env_assignment(key, value, shell))
+    return "\n".join(lines)
+
+
+def gateway_process_env(record: dict[str, Any]) -> dict[str, str]:
+    env = os.environ.copy()
+    for key, value in gateway_env_record(record).items():
+        ref = env_reference_name(value)
+        if ref:
+            if os.environ.get(ref) is not None:
+                env[key] = str(os.environ[ref])
+        else:
+            env[key] = str(value)
+    return env
+
+
+def cmd_gateway(args: argparse.Namespace) -> None:
+    state = normalize_state(ensure_state())
+    name = config_safe_name(args.name or "default")
+    record = gateway_record(name, state)
+
+    if args.action == "config":
+        if args.profile:
+            defaults = profile_gateway_defaults(args.profile)
+            for key, value in defaults.items():
+                if value:
+                    record[key] = value
+        for key in ["base_url", "api_key_env", "command"]:
+            value = getattr(args, key, None)
+            if value:
+                record[key] = value
+        if args.note:
+            record["note"] = " ".join(args.note)
+        save_state(state)
+        if args.json:
+            print(json.dumps({"name": name, **record}, indent=2, ensure_ascii=False))
+        else:
+            print(f"Saved gateway {name}: {record.get('base_url')}")
+        return
+
+    if args.action == "env":
+        shell = args.shell or ("powershell" if os.name == "nt" else "bash")
+        if args.json:
+            print(json.dumps(gateway_env_record(record), indent=2, ensure_ascii=False))
+        else:
+            print(gateway_env_script(record, shell))
+        return
+
+    if args.action == "start":
+        command = args.command or record.get("command")
+        if args.base_url:
+            record["base_url"] = args.base_url
+        if args.api_key_env:
+            record["api_key_env"] = args.api_key_env
+        if args.print or not command:
+            print(f"Gateway {name} env:")
+            print(gateway_env_script(record, "powershell" if os.name == "nt" else "bash"))
+            print(f"Configure a start command with: ai-gateway config {name} --command \"your-gateway serve\"")
+            return
+        GATEWAY_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        log_handle = GATEWAY_LOG_PATH.open("ab")
+        process = subprocess.Popen(split_gateway_command(str(command)), stdout=log_handle, stderr=subprocess.STDOUT, env=gateway_process_env(record))
+        record.update({
+            "command": str(command),
+            "pid": process.pid,
+            "started_at": now_stamp(),
+            "status": "running",
+            "log_path": str(GATEWAY_LOG_PATH),
+        })
+        save_state(state)
+        append_request_log({"kind": "gateway.start", "profile": record.get("profile"), "provider": record.get("provider"), "status": "started", "gateway": name, "pid": process.pid})
+        print(f"Started gateway {name} pid={process.pid} log={GATEWAY_LOG_PATH}")
+        return
+
+    if args.action == "status":
+        running = process_is_running(int(record.get("pid") or 0))
+        payload = {"name": name, **record, "running": running}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print(f"gateway {name}: {'running' if running else record.get('status', 'stopped')}")
+        print(f"base_url: {record.get('base_url')}")
+        if record.get("pid"):
+            print(f"pid: {record.get('pid')}")
+        if record.get("command"):
+            print(f"command: {record.get('command')}")
+        return
+
+    if args.action == "stop":
+        pid = int(record.get("pid") or 0)
+        if process_is_running(pid):
+            os.kill(pid, signal.SIGTERM)
+            record["status"] = "stopped"
+            record["stopped_at"] = now_stamp()
+            append_request_log({"kind": "gateway.stop", "profile": record.get("profile"), "provider": record.get("provider"), "status": "stopped", "gateway": name, "pid": pid})
+            print(f"Stopped gateway {name} pid={pid}")
+        else:
+            record["status"] = "stopped"
+            print(f"Gateway {name} is not running.")
+        save_state(state)
+        return
+
+    if args.action == "logs":
+        if args.json:
+            payload = {"path": str(GATEWAY_LOG_PATH), "exists": GATEWAY_LOG_PATH.exists(), "lines": []}
+            if GATEWAY_LOG_PATH.exists():
+                payload["lines"] = GATEWAY_LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines()[-args.tail:]
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not GATEWAY_LOG_PATH.exists():
+            print(f"No gateway log found at {GATEWAY_LOG_PATH}")
+            return
+        for line in GATEWAY_LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines()[-args.tail:]:
+            print(line)
+        return
+
+    raise SystemExit(f"Unknown gateway action {args.action!r}")
 
 
 def resolve_profile_env_value(profile: dict[str, Any], key: str) -> tuple[str | None, str | None]:
@@ -2987,6 +3744,89 @@ def cmd_api_test(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def cmd_api_probe(args: argparse.Namespace) -> None:
+    resolved_state, profile_name, profile, config_path = resolve_named_profile(args.profile)
+    checks: list[dict[str, Any]] = []
+    capabilities, capability_provider, model_alias = profile_model_capabilities(resolved_state, profile)
+    model = str(profile.get("model") or "")
+    api_provider = str(profile.get("api_provider") or capability_provider or profile.get("provider") or "")
+    api_kind = str(profile.get("api_kind") or "")
+    base_key, base_url, _ = profile_base_url(profile)
+    key_name, api_key, key_ref = profile_api_key(profile)
+    model_ids: list[str] = []
+
+    if capabilities:
+        add_check(checks, "ok", "local capability cache", f"{capability_provider or api_provider}:{model}")
+    else:
+        add_check(checks, "warn", "local capability cache", "model is not in the local registry yet")
+
+    parsed = urllib.parse.urlparse(base_url or "")
+    can_probe_models = bool(base_url and parsed.scheme in {"http", "https"} and parsed.netloc)
+    if args.skip_network:
+        add_check(checks, "skip", "network", "network probe skipped")
+    elif not can_probe_models:
+        add_check(checks, "skip", "network", f"no usable base URL found" + (f" in {base_key}" if base_key else ""))
+    elif api_kind.startswith("openai-compatible") or api_provider in {"openai", "openrouter", "deepseek", "ollama", "lmstudio", "gemini"}:
+        headers = {"Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        models_url = str(base_url).rstrip("/") + "/models"
+        status, body, error = http_get_text(models_url, headers, args.timeout)
+        if status == 200:
+            add_check(checks, "ok", "models endpoint", f"GET {models_url} returned 200")
+            try:
+                payload = json.loads(body)
+            except json.JSONDecodeError:
+                payload = {}
+            model_ids = sorted(str(item.get("id")) for item in payload.get("data", []) if isinstance(item, dict) and item.get("id"))
+            if model and model_ids:
+                add_check(checks, "ok" if model in model_ids else "warn", "model id", f"{model} {'found' if model in model_ids else 'not listed by /models'}")
+        elif status in {401, 403}:
+            add_check(checks, "fail", "authentication", f"GET {models_url} returned {status}; check {key_ref or key_name or 'API key'}")
+        elif status is not None:
+            add_check(checks, "warn", "models endpoint", f"GET {models_url} returned {status}")
+        else:
+            add_check(checks, "warn", "network", f"could not reach {models_url}: {error}")
+    else:
+        add_check(checks, "skip", "network", f"{api_kind or api_provider or 'profile'} does not expose a supported /models probe")
+
+    payload = {
+        "profile": profile_name,
+        "project_config": str(config_path) if config_path else None,
+        "provider": api_provider or None,
+        "api_kind": api_kind or None,
+        "model": model,
+        "model_alias": model_alias,
+        "capability_provider": capability_provider,
+        "capabilities": capabilities,
+        "base_url": base_url,
+        "api_key_env": key_ref or key_name,
+        "model_ids": model_ids[: args.max_models],
+        "model_count": len(model_ids),
+        "checks": checks,
+        "probed_at": now_stamp(),
+    }
+    if not args.no_cache:
+        state = normalize_state(ensure_state())
+        state.setdefault("api_probes", {})[profile_name] = payload
+        save_state(state)
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print(f"API probe: {profile_name}")
+    for check in checks:
+        print(f"[{check['status']}] {check['name']}: {check['detail']}")
+    if capabilities:
+        context = capabilities.get("context", "unknown")
+        traits = ", ".join(key for key in ["coding", "vision", "tools", "reasoning"] if capabilities.get(key) is True)
+        print(f"capabilities: context={context}" + (f" {traits}" if traits else ""))
+    if model_ids:
+        shown = ", ".join(model_ids[: min(len(model_ids), 10)])
+        print(f"models: {shown}" + (" ..." if len(model_ids) > 10 else ""))
+    if any(check["status"] == "fail" for check in checks):
+        raise SystemExit(1)
+
+
 def cmd_api(args: argparse.Namespace) -> None:
     if args.action == "list":
         presets = all_api_presets()
@@ -3047,6 +3887,10 @@ def cmd_api(args: argparse.Namespace) -> None:
 
     if args.action == "test":
         cmd_api_test(args)
+        return
+
+    if args.action == "probe":
+        cmd_api_probe(args)
         return
 
     if args.action != "apply":
@@ -5137,6 +5981,22 @@ function ai-agent {{
   Invoke-AiCliSwitcher agent @args
 }}
 
+function ai-route {{
+  Invoke-AiCliSwitcher route @args
+}}
+
+function ai-gateway {{
+  Invoke-AiCliSwitcher gateway @args
+}}
+
+function ai-preset {{
+  Invoke-AiCliSwitcher preset @args
+}}
+
+function ai-request {{
+  Invoke-AiCliSwitcher request @args
+}}
+
 function ai-session {{
   Invoke-AiCliSwitcher session @args
 }}
@@ -5329,6 +6189,22 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} agent %*
 """,
+        "ai-route.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} route %*
+""",
+        "ai-gateway.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} gateway %*
+""",
+        "ai-preset.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} preset %*
+""",
+        "ai-request.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} request %*
+""",
         "ai-session.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} session %*
@@ -5479,6 +6355,10 @@ ai-lite() {{ _ai_cli_switcher lite "$@"; }}
 ai-menu() {{ _ai_cli_switcher menu "$@"; }}
 ai-report() {{ _ai_cli_switcher report "$@"; }}
 ai-agent() {{ _ai_cli_switcher agent "$@"; }}
+ai-route() {{ _ai_cli_switcher route "$@"; }}
+ai-gateway() {{ _ai_cli_switcher gateway "$@"; }}
+ai-preset() {{ _ai_cli_switcher preset "$@"; }}
+ai-request() {{ _ai_cli_switcher request "$@"; }}
 ai-session() {{ _ai_cli_switcher session "$@"; }}
 ai-workspace() {{ _ai_cli_switcher workspace "$@"; }}
 ai-ws() {{ _ai_cli_switcher workspace "$@"; }}
@@ -5558,6 +6438,10 @@ function ai-lite; _ai_cli_switcher lite $argv; end
 function ai-menu; _ai_cli_switcher menu $argv; end
 function ai-report; _ai_cli_switcher report $argv; end
 function ai-agent; _ai_cli_switcher agent $argv; end
+function ai-route; _ai_cli_switcher route $argv; end
+function ai-gateway; _ai_cli_switcher gateway $argv; end
+function ai-preset; _ai_cli_switcher preset $argv; end
+function ai-request; _ai_cli_switcher request $argv; end
 function ai-session; _ai_cli_switcher session $argv; end
 function ai-workspace; _ai_cli_switcher workspace $argv; end
 function ai-ws; _ai_cli_switcher workspace $argv; end
@@ -6393,6 +7277,8 @@ def readonly_effective_state(start: Path | None = None) -> tuple[dict[str, Any],
         merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
         merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
         merged["policies"] = list(state.get("policies", [])) + list(project_config.get("policies", []))
+        merged.setdefault("routes", {}).update(project_config.get("routes", {}))
+        merged.setdefault("gateways", {}).update(project_config.get("gateways", {}))
         if "workspace_targets" in project_config:
             merged["workspace_targets"] = project_config["workspace_targets"]
         if project_config.get("active"):
@@ -6595,6 +7481,20 @@ def build_parser() -> argparse.ArgumentParser:
     config_parser.add_argument("--json", action="store_true")
     config_parser.set_defaults(func=cmd_config)
 
+    route_parser = sub.add_parser("route", help="Manage task route slots such as fast, think, long, cheap, local, and critique.")
+    route_parser.add_argument("action", choices=["list", "slots", "set", "unset", "show", "explain", "use", "path"])
+    route_parser.add_argument("slot", nargs="?")
+    route_parser.add_argument("target", nargs="?", help="Profile, alias, strategy, recipe, or API preset.")
+    route_parser.add_argument("model", nargs="?")
+    route_parser.add_argument("--provider")
+    route_parser.add_argument("--command")
+    route_parser.add_argument("--profile", help="Generated profile name for API routes or model-overridden routes.")
+    route_parser.add_argument("--memory")
+    route_parser.add_argument("--description")
+    route_parser.add_argument("--project", action="store_true", help="Read/write route activation in the current project config.")
+    route_parser.add_argument("--json", action="store_true")
+    route_parser.set_defaults(func=cmd_route)
+
     paths_parser = sub.add_parser("paths", help="Show switcher config and memory paths.")
     paths_parser.add_argument("--json", action="store_true")
     paths_parser.set_defaults(func=cmd_paths)
@@ -6638,6 +7538,14 @@ def build_parser() -> argparse.ArgumentParser:
     api_test_parser.add_argument("--skip-network", action="store_true", help="Only validate local profile/env configuration.")
     api_test_parser.add_argument("--json", action="store_true")
     api_test_parser.set_defaults(func=cmd_api)
+    api_probe_parser = api_sub.add_parser("probe", help="Probe and cache model/API capabilities for a profile.")
+    api_probe_parser.add_argument("profile", nargs="?", help="Profile or alias to probe. Defaults to the active profile.")
+    api_probe_parser.add_argument("--timeout", type=float, default=5.0)
+    api_probe_parser.add_argument("--skip-network", action="store_true", help="Use only local registry data and profile config.")
+    api_probe_parser.add_argument("--no-cache", action="store_true", help="Print probe results without updating state cache.")
+    api_probe_parser.add_argument("--max-models", type=int, default=50, help="Maximum /models ids to include in JSON output.")
+    api_probe_parser.add_argument("--json", action="store_true")
+    api_probe_parser.set_defaults(func=cmd_api)
     api_apply_parser = api_sub.add_parser("apply", help="Apply an API preset to a profile.")
     api_apply_parser.add_argument("profile")
     api_apply_parser.add_argument("preset")
@@ -6654,6 +7562,48 @@ def build_parser() -> argparse.ArgumentParser:
     api_apply_parser.add_argument("--project", action="store_true", help="Save the profile in the current project config.")
     api_apply_parser.add_argument("--allow-secret-env", action="store_true", help="Allow storing env values that look like secrets.")
     api_apply_parser.set_defaults(func=cmd_api)
+
+    preset_parser = sub.add_parser("preset", help="Install, show, or export provider preset manifests.")
+    preset_parser.add_argument("action", choices=["list", "show", "install", "export", "path"])
+    preset_parser.add_argument("name", nargs="?", help="Preset name for show/export, or optional package name.")
+    preset_parser.add_argument("input", nargs="?", help="Local manifest path for install.")
+    preset_parser.add_argument("--output", "-o", help="Output JSON path for export.")
+    preset_parser.add_argument("--package-name", help="Package name to write during export.")
+    preset_parser.add_argument("--version")
+    preset_parser.add_argument("--description")
+    preset_parser.add_argument("--force", action="store_true", help="Replace an installed manifest with the same package name.")
+    preset_parser.add_argument("--json", action="store_true")
+    preset_parser.set_defaults(func=cmd_preset)
+
+    gateway_parser = sub.add_parser("gateway", help="Configure and manage a local OpenAI-compatible gateway process.")
+    gateway_parser.add_argument("action", choices=["config", "start", "status", "stop", "env", "logs"])
+    gateway_parser.add_argument("name", nargs="?", help="Gateway name. Defaults to 'default'.")
+    gateway_parser.add_argument("--profile", help="Copy base URL/provider/model defaults from a profile.")
+    gateway_parser.add_argument("--base-url")
+    gateway_parser.add_argument("--api-key-env")
+    gateway_parser.add_argument("--command", help="Command used by gateway start, e.g. 'nadirclaw serve'.")
+    gateway_parser.add_argument("--note", nargs="*")
+    gateway_parser.add_argument("--shell", choices=["powershell", "cmd", "bash", "zsh", "fish", "nu"])
+    gateway_parser.add_argument("--tail", type=int, default=80)
+    gateway_parser.add_argument("--print", action="store_true", help="Print env/start guidance without launching a process.")
+    gateway_parser.add_argument("--json", action="store_true")
+    gateway_parser.set_defaults(func=cmd_gateway)
+
+    request_parser = sub.add_parser("request", help="Inspect or append local request/gateway telemetry logs.")
+    request_parser.add_argument("action", choices=["log", "add", "summary", "clear", "path"])
+    request_parser.add_argument("note", nargs="*")
+    request_parser.add_argument("--profile")
+    request_parser.add_argument("--provider")
+    request_parser.add_argument("--model")
+    request_parser.add_argument("--kind")
+    request_parser.add_argument("--status")
+    request_parser.add_argument("--latency-ms", type=float)
+    request_parser.add_argument("--tokens-in", type=int)
+    request_parser.add_argument("--tokens-out", type=int)
+    request_parser.add_argument("--cost", type=float)
+    request_parser.add_argument("--tail", type=int)
+    request_parser.add_argument("--json", action="store_true")
+    request_parser.set_defaults(func=cmd_request)
 
     agent_parser = sub.add_parser("agent", help="Install agent-side switching instructions for Codex, Claude, OpenCode, Amp, Devin, Junie, Zed, Kilo, and similar CLIs.")
     agent_parser.add_argument("action", choices=["install", "remove", "paths", "targets", "detect", "recommend", "platform", "platforms", "prompt", "instructions"])

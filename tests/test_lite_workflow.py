@@ -309,6 +309,81 @@ def test_external_provider_presets() -> None:
             raise AssertionError(f"report external provider: expected company-ai, got {profile}")
 
 
+def test_routes_gateway_probe_presets_and_request_log() -> None:
+    with tempfile.TemporaryDirectory(prefix="ai-route-") as raw:
+        home = Path(raw) / "switcher-home"
+        env = {"AI_CLI_SWITCHER_HOME": str(home)}
+
+        run_cli_env(env, "recipe", "install", "opencode-openrouter")
+        run_cli_env(env, "route", "set", "think", "opencode-openrouter", "anthropic/claude-sonnet-4.5")
+        shown = json.loads(run_cli_env(env, "route", "show", "think", "--json").stdout)
+        if shown.get("profile") != "route-think" or shown.get("profile_payload", {}).get("model") != "anthropic/claude-sonnet-4.5":
+            raise AssertionError(f"route show: unexpected payload {shown}")
+
+        run_cli_env(env, "route", "use", "think")
+        status = json.loads(run_cli_env(env, "status", "--json").stdout)
+        if status.get("active") != "route-think":
+            raise AssertionError(f"route use: expected active route-think, got {status}")
+
+        probe = json.loads(run_cli_env(env, "api", "probe", "route-think", "--skip-network", "--json").stdout)
+        if probe.get("capabilities", {}).get("coding") is not True:
+            raise AssertionError(f"api probe: expected coding capability, got {probe}")
+
+        manifest = Path(raw) / "lab-preset.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "name": "lab-ai",
+                    "version": "1.0.0",
+                    "description": "Local lab preset",
+                    "kind": "openai-compatible",
+                    "model": "lab-code",
+                    "env": {
+                        "OPENAI_BASE_URL": "https://lab.example.test/v1",
+                        "OPENAI_API_KEY": "${LAB_AI_KEY}",
+                    },
+                    "aliases": ["lab"],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        run_cli_env(env, "preset", "install", str(manifest))
+        installed = json.loads(run_cli_env(env, "api", "show", "lab", "--json").stdout)
+        if installed.get("name") != "lab-ai" or installed.get("model") != "lab-code":
+            raise AssertionError(f"preset install: unexpected installed preset {installed}")
+
+        run_cli_env(env, "gateway", "config", "default", "--profile", "route-think", "--command", "gateway serve")
+        gateway = json.loads(run_cli_env(env, "gateway", "status", "--json").stdout)
+        if gateway.get("base_url") != "https://openrouter.ai/api/v1" or gateway.get("api_key_env") != "OPENROUTER_API_KEY":
+            raise AssertionError(f"gateway config: unexpected status {gateway}")
+        gateway_env = run_cli_env(env, "gateway", "env", "--shell", "bash").stdout
+        if "OPENAI_BASE_URL" not in gateway_env or "OPENROUTER_API_KEY" not in gateway_env:
+            raise AssertionError(f"gateway env: unexpected output\n{gateway_env}")
+
+        run_cli_env(
+            env,
+            "request",
+            "add",
+            "manual",
+            "--profile",
+            "route-think",
+            "--provider",
+            "openrouter",
+            "--model",
+            "anthropic/claude-sonnet-4.5",
+            "--status",
+            "ok",
+            "--tokens-in",
+            "10",
+            "--tokens-out",
+            "5",
+        )
+        summary = json.loads(run_cli_env(env, "request", "summary", "--json").stdout)
+        if summary.get("count") != 1 or summary.get("tokens") != 15:
+            raise AssertionError(f"request summary: unexpected payload {summary}")
+
+
 def main() -> int:
     test_fixture_recommendations()
     test_mixed_and_common_modes()
@@ -319,6 +394,7 @@ def main() -> int:
     test_prompt_templates()
     test_config_explain_is_readonly()
     test_external_provider_presets()
+    test_routes_gateway_probe_presets_and_request_log()
     print("Lite workflow fixtures passed.")
     return 0
 

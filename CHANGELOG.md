@@ -14,6 +14,11 @@ This project currently follows a lightweight release format while it is still a 
 - `template` / `ai-template` for reusable prompt and handoff templates with variable interpolation.
 - `config explain` / `ai-config explain` for effective config source diagnostics.
 - `providers.d/*.json` external API presets that can be used by `api list`, `api show`, `api apply`, and profile/model commands.
+- `route` / `ai-route` task slots for mapping `fast`, `think`, `long`, `cheap`, `local`, `critique`, and similar workflows to profiles, recipes, strategies, or API presets.
+- `api probe` for capability detection and cached model/API probe metadata.
+- `gateway` / `ai-gateway` for local OpenAI-compatible gateway process metadata, env export, status, and logs.
+- `preset` / `ai-preset` for installing and exporting provider preset manifests.
+- `request` / `ai-request` for local NDJSON request/gateway telemetry summaries.
 - Reference analysis for LLM, AIChat, and OpenCode under `docs/REFERENCE_ANALYSIS.md`.
 
 ## [0.4.0] - 2026-05-31

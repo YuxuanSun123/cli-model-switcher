@@ -108,6 +108,12 @@ def main() -> int:
         "ai-template",
         "ai-template set handoff",
         "ai-config explain",
+        "ai-route",
+        "ai-route set think",
+        "ai-api probe",
+        "ai-gateway",
+        "ai-preset",
+        "ai-request",
         "providers.d",
         "ai-api providers",
         "Reference Analysis",
@@ -168,7 +174,7 @@ def main() -> int:
                 fail(f"{relative} is missing language navigation entry: {expected}")
         if "简体中文" not in localized and "簡體中文" not in localized:
             fail(f"{relative} is missing Simplified Chinese language navigation")
-        for expected in ["setup --lite", "ai-lite", "ai-lite --fix", "ai-lite --prompt", "ai-lite --undo", "ai-agent recommend", "ai-agent platforms amp devin junie zed kilo", "ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae", "ai-policy deny openrouter", "ai-template set handoff", "ai-config explain", "ai-api providers"]:
+        for expected in ["setup --lite", "ai-lite", "ai-lite --fix", "ai-lite --prompt", "ai-lite --undo", "ai-agent recommend", "ai-agent platforms amp devin junie zed kilo", "ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae", "ai-policy deny openrouter", "ai-template set handoff", "ai-config explain", "ai-api providers", "ai-api probe", "ai-route set think", "ai-gateway status", "ai-preset list", "ai-request summary"]:
             if expected not in localized:
                 fail(f"{relative} is missing expanded agent platform command: {expected}")
 
@@ -184,12 +190,12 @@ def main() -> int:
         if expected not in reference_analysis:
             fail(f"REFERENCE_ANALYSIS.md is missing expected topic: {expected}")
 
-    for command in ["about", "ayatori", "lite", "ai-lite", "menu", "ai-menu", "report", "ai-report", "policy", "ai-policy", "template", "ai-template", "config", "ai-config", "providers.d", "api_providers_parser", "--strict", "--choice", "--list", "lite-dry-run", "all_common", "--all-common", "--undo", "--prompt", "--fix", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "lite", "ai-lite", "menu", "ai-menu", "report", "ai-report", "policy", "ai-policy", "template", "ai-template", "config", "ai-config", "route", "ai-route", "gateway", "ai-gateway", "preset", "ai-preset", "request", "ai-request", "api probe", "providers.d", "api_providers_parser", "--strict", "--choice", "--list", "lite-dry-run", "all_common", "--all-common", "--undo", "--prompt", "--fix", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 
     tests = (root / "tests" / "test_lite_workflow.py").read_text(encoding="utf-8")
-    for expected in ["agent", "recommend", "lite", "menu", "report", "policy", "template", "config", "providers.d", "lite-dry-run", "prompt", "--all-common", "--undo", "fixtures"]:
+    for expected in ["agent", "recommend", "lite", "menu", "report", "policy", "template", "config", "providers.d", "route", "gateway", "preset", "request", "probe", "lite-dry-run", "prompt", "--all-common", "--undo", "fixtures"]:
         if expected not in tests:
             fail(f"test_lite_workflow.py is missing expected coverage text: {expected}")
 

@@ -47,6 +47,11 @@ ai-report
 - Add provider allow/deny guardrails with `ai-policy`.
 - Reuse prompt and handoff text with `ai-template`.
 - Explain effective global/project/default config sources with `ai-config explain`.
+- Define task route slots such as `fast`, `think`, `long`, `cheap`, `local`, and `critique` with `ai-route`.
+- Probe and cache API/model capabilities with `ai-api probe`.
+- Manage local OpenAI-compatible gateway process metadata and env export with `ai-gateway`.
+- Install/share provider preset manifests with `ai-preset`.
+- Keep local request/gateway telemetry in `ai-request` logs for cost, latency, and token summaries.
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
 - Offer `ai-lite` as a minimal one-command path for users who only want project agent-bridge setup.
 - Offer `ai-menu` as a small numbered menu for common setup, diagnosis, and bridge actions.
@@ -251,9 +256,54 @@ Put private or team API presets in `~/.ai-cli-switcher/providers.d/*.json`, then
 ai-api providers
 ai-api show corp
 ai-api apply company corp --command opencode --model company-code --use
+ai-preset install ./company-ai.json
+ai-preset list
+ai-preset export openrouter --output openrouter-preset.json
 ```
 
-External presets may also use `{ "presets": { ... }, "aliases": { ... } }` for multi-provider files. Direct-looking secrets are refused; store keys in environment variables and reference them as `${ENV_NAME}`.
+External presets may also use `{ "presets": { ... }, "aliases": { ... } }` for multi-provider files. Direct-looking secrets are refused; store keys in environment variables and reference them as `${ENV_NAME}`. `ai-preset` validates the same format before installing it into `providers.d`.
+
+## Task Routes, Gateway, and Logs
+
+Use `ai-route` when you want one short command per task type instead of remembering profile/model combinations:
+
+```powershell
+ai-route slots
+ai-route set think opencode-openrouter anthropic/claude-sonnet-4.5
+ai-route set cheap deepseek deepseek-chat
+ai-route list
+ai-route explain think
+ai-route use think
+ai-route unset cheap
+```
+
+Routes can point to profiles, aliases, strategies, recipes, or API presets. When a route pins a different model, Ayatori creates a generated profile such as `route-think` and activates it with the same policy checks used by `ai-use`.
+
+Use `ai-api probe` to inspect and cache capability metadata:
+
+```powershell
+ai-api probe route-think --skip-network
+ai-api probe opencode-openrouter --json
+```
+
+Use `ai-gateway` for local routers or proxies such as an OpenAI-compatible gateway:
+
+```powershell
+ai-gateway config default --profile opencode-openrouter --command "gateway serve"
+ai-gateway env --shell powershell
+ai-gateway start --print
+ai-gateway status
+ai-gateway logs
+```
+
+Use `ai-request` for local request/gateway telemetry:
+
+```powershell
+ai-request add --profile route-think --provider openrouter --model anthropic/claude-sonnet-4.5 --status ok --tokens-in 1200 --tokens-out 350
+ai-request log --tail 20
+ai-request summary
+ai-request path
+```
 
 ## Terminal Workspaces
 
@@ -423,6 +473,13 @@ ai-handoff claude "Review this task from another angle."
 ai-profile gateway --command opencode --api custom-openai --base-url https://gateway.example/v1 --api-key-env GATEWAY_API_KEY --use
 ai-api providers
 ai-api test gateway --skip-network
+ai-api probe gateway --skip-network
+ai-route set think opencode-openrouter anthropic/claude-sonnet-4.5
+ai-route use think
+ai-gateway config default --profile gateway --command "gateway serve"
+ai-gateway env --shell powershell
+ai-preset install ./company-ai.json
+ai-request summary
 
 ai-policy deny openrouter
 ai-policy check openrouter
@@ -453,7 +510,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-report`, `ai-policy`, `ai-template`, `ai-config`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
+On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-report`, `ai-policy`, `ai-template`, `ai-config`, `ai-route`, `ai-gateway`, `ai-preset`, `ai-request`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
 
 Keep the shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
@@ -477,6 +534,10 @@ Generated helpers include:
 - `ai-menu`
 - `ai-report`
 - `ai-agent`
+- `ai-route`
+- `ai-gateway`
+- `ai-preset`
+- `ai-request`
 - `ai-session`
 - `ai-workspace`
 - `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`

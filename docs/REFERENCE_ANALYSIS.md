@@ -41,7 +41,28 @@ This project was compared against three open source CLI AI tools on 2026-05-31. 
 - Added `config explain` / `ai-config explain` for sysinfo-style diagnostics that identify project, global, default, and environment sources.
 - Added `providers.d/*.json` external API presets so teams can extend the provider catalog without editing the core script.
 
+## Router/Gateway Follow-Up Review
+
+A later pass also reviewed router and gateway-oriented projects for workflow patterns: `musistudio/claude-code-router`, `jedarden/CLASP`, `nielspeter/claude-code-proxy`, `opendev-to/opendev`, `NadirRouter/NadirClaw`, `inflaborg/ccrelay`, Relay Switch, and `Gitlawb/openclaude`.
+
+Useful ideas from that pass:
+
+- Route by task slot rather than forcing users to remember provider/model pairs.
+- Keep provider preset packages installable and shareable.
+- Cache model capability probes instead of assuming the configured model is usable.
+- Treat local gateways/proxies as first-class process/env targets.
+- Keep request telemetry available for future cost, latency, and fallback reports.
+
+Changes applied here:
+
+- Added `route` / `ai-route` task slots for `fast`, `think`, `long`, `cheap`, `local`, `critique`, and custom slots.
+- Added `api probe` for local registry and optional `/models` capability checks.
+- Added `gateway` / `ai-gateway` for gateway metadata, env export, process status, and logs.
+- Added `preset` / `ai-preset` for provider preset manifest install/export.
+- Added `request` / `ai-request` for local NDJSON telemetry logs and summaries.
+
 ## Follow-Up Candidates
 
 - Add an optional model-catalog sync command inspired by AIChat's `models.yaml` update flow.
 - Add structured issue-report export that redacts local paths and env details more aggressively.
+- Add a real reverse-proxy gateway mode once the profile/router layer is stable.

@@ -112,6 +112,12 @@ ai-template set handoff --prompt 'Handoff to $agent: $input' --default agent=cla
 ai-template use handoff --input "review the latest diff"
 ai-config explain --profile codex
 ai-api providers
+ai-api probe opencode-openrouter --skip-network
+ai-route set think opencode-openrouter anthropic/claude-sonnet-4.5
+ai-route use think
+ai-gateway status
+ai-preset list
+ai-request summary
 ```
 
 `ai-policy` 用来避免误用某个 provider，`ai-template` 用来保存可复用提示词，`ai-config explain` 用来查看有效配置来自项目、全局还是默认值，`providers.d/*.json` 可以添加团队或私有 API preset。

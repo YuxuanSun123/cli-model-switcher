@@ -110,6 +110,12 @@ ai-template set handoff --prompt 'Handoff to $agent: $input' --default agent=cla
 ai-template use handoff --input "review the latest diff"
 ai-config explain --profile codex
 ai-api providers
+ai-api probe opencode-openrouter --skip-network
+ai-route set think opencode-openrouter anthropic/claude-sonnet-4.5
+ai-route use think
+ai-gateway status
+ai-preset list
+ai-request summary
 ```
 
 `ai-policy` blockiert versehentliche Provider-Nutzung, `ai-template` speichert wiederverwendbare Prompts, `ai-config explain` zeigt die Quelle wirksamer Einstellungen, und `providers.d/*.json` erweitert private API-Presets.
