@@ -23,6 +23,7 @@ REQUIRED_FILES = [
     "docs/README.ja.md",
     "docs/README.zh-CN.md",
     "docs/README.zh-TW.md",
+    "docs/RELEASE_CHECKLIST.md",
     "references/linux-macos.md",
     "references/shell-integration.md",
 ]
@@ -85,6 +86,7 @@ def main() -> int:
         "install.ps1",
         "install.sh --lite",
         "Shortest Path",
+        "Release Checklist",
         ".\\install.ps1 -Lite",
         "ai-workspace",
         "ai-lite",

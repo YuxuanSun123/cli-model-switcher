@@ -6,10 +6,15 @@ This project currently follows a lightweight release format while it is still a 
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [0.4.0] - 2026-05-31
+
 ### Added
 
 - `lite` / `ai-lite`, a simplified one-command project agent bridge setup that auto-recommends targets and falls back to Codex, Claude, and OpenCode.
 - `ai-lite --fix`, `--prompt`, `--undo`, and `--all-common`, plus `setup --lite` and installer `--lite` for minimal installs.
+- Lite smoke coverage in CI and release validation, plus a README shortest path for minimal setup.
 - German, Japanese, French, and Italian README pages, plus expanded language navigation.
 - `about` command and `ayatori` / `ayatori-nexus` shell entrypoints for the Ayatori Nexus project codename.
 - `agent recommend` for project-aware bridge install suggestions, plus platform support levels in `agent platforms`.
