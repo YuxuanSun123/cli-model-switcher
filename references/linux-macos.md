@@ -24,6 +24,12 @@ python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" i
 
 This installs shell functions, adds the shim directory to interactive shell helpers, and writes POSIX executable shims into `~/.local/bin` by default. Open a new terminal or reload the shell profile printed by the installer.
 
+For the minimal Lite workflow:
+
+```bash
+python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" setup --lite
+```
+
 For a complete first-run setup with recommended profiles and strategy aliases:
 
 ```bash
@@ -72,6 +78,10 @@ python3 "$HOME/.codex/skills/cli-model-switcher/scripts/cli_model_switcher.py" i
 ai-list
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
+ai-lite --all-common
 ai-status
 ai-profile local --command opencode --model local --alias l --use
 ai-profile deepseek --command opencode --api deepseek --model deepseek-chat --alias ds --use

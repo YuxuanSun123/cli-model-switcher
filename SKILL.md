@@ -33,9 +33,12 @@ Run the helper with Python 3:
 
 ```powershell
 .\install.ps1
+.\install.ps1 -Lite
+sh install.sh --lite
 py -3.12 scripts/cli_model_switcher.py about
 py -3.12 scripts/cli_model_switcher.py init
 py -3.12 scripts/cli_model_switcher.py setup --shell auto
+py -3.12 scripts/cli_model_switcher.py setup --lite
 py -3.12 scripts/cli_model_switcher.py setup --full
 py -3.12 scripts/cli_model_switcher.py setup --wizard
 py -3.12 scripts/cli_model_switcher.py setup --wizard --yes --recipes opencode-openrouter,local-ollama --active opencode-openrouter
@@ -48,6 +51,10 @@ py -3.12 scripts/cli_model_switcher.py api apply opencode openrouter --command o
 py -3.12 scripts/cli_model_switcher.py api test opencode --skip-network
 py -3.12 scripts/cli_model_switcher.py lite
 py -3.12 scripts/cli_model_switcher.py lite --dry-run
+py -3.12 scripts/cli_model_switcher.py lite --fix
+py -3.12 scripts/cli_model_switcher.py lite --prompt
+py -3.12 scripts/cli_model_switcher.py lite --undo
+py -3.12 scripts/cli_model_switcher.py lite --all-common
 py -3.12 scripts/cli_model_switcher.py lite zed kilo
 py -3.12 scripts/cli_model_switcher.py agent install codex claude opencode
 py -3.12 scripts/cli_model_switcher.py agent install gemini qwen copilot cursor windsurf aider cline roo
@@ -173,6 +180,7 @@ When a user asks for "realtime switching", implement shell functions or aliases 
 Prefer script commands over manual JSON edits:
 
 - `setup --shell auto` initializes state and installs the best shell helper for the current platform.
+- `setup --lite` initializes only the minimal Lite workflow and shell helpers, without recipe selection or strategy setup.
 - `about` shows Ayatori Nexus project metadata, state paths, installed entrypoints, and a short set of next commands.
 - `setup --full` initializes state, creates recommended profiles (`codex`, `claude`, `gemini`, `opencode-openrouter`, `opencode-deepseek`, `local-ollama`), installs strategy aliases, detects installed CLI tools, and installs shell helpers. Use `--no-install` to skip wrapper writes.
 - `setup --wizard` detects installed CLI tools, offers profile recipes, chooses an active profile, installs shell helpers, then runs `doctor --fix` and `secret audit`. Use `--yes --recipes NAME1,NAME2 --active PROFILE` for non-interactive setup.
@@ -181,7 +189,7 @@ Prefer script commands over manual JSON edits:
 - `profile NAME --command COMMAND --api PRESET --model MODEL --use` creates or updates a profile with a model API preset in one step.
 - `api list`, `api show PRESET`, and `api apply PROFILE PRESET --command COMMAND --use` manage built-in API presets.
 - `api test PROFILE` checks command availability, key env vars, base URL format, and OpenAI-compatible `/models` connectivity unless `--skip-network` is used.
-- `lite [TARGET...]` is the simplified one-command path. It scans the current project, installs the shortest matching agent bridge, and falls back to `codex claude opencode` when no project-specific rule files are detected. Use `--dry-run` to preview and optional targets such as `lite zed kilo` to force a small target set.
+- `lite [TARGET...]` is the simplified one-command path. It scans the current project, installs the shortest matching agent bridge, and falls back to `codex claude opencode` when no project-specific rule files are detected. Use `--dry-run` to preview, `--fix` to run `doctor --fix` first, `--prompt` to print instructions for already-running agents, `--undo` to remove managed bridge blocks, `--all-common` for common agent targets, and optional targets such as `lite zed kilo` to force a small target set.
 - `agent install codex claude opencode` writes project instruction files (`AGENTS.md`, `CLAUDE.md`) that teach agent CLIs to execute `ai-workspace switch TARGET` when the user says `/switch TARGET`, `switch TARGET`, `next`, `choose`, or `handoff TARGET NOTE`. `agent prompt` prints a compact instruction to paste into an already-running agent session. `agent platforms` lists platform-level adapters such as Amp, Devin, Junie, Zed, Kilo, GitLab Duo, Firebase Studio, Android Studio Gemini, OpenHands, Warp, Trae, and OpenClaw, with `support` levels (`native`, `compatible`, `generic`, `experimental`). `agent recommend` scans the current project and prints a recommended install command. `agent install amp devin junie zed kilo` writes each platform's bridge files, while `agent install openclaw --dir ~/.openclaw/workspace` writes OpenClaw workspace bridges (`AGENTS.md`, `TOOLS.md`). `agent targets` lists supported targets and rule files, while `agent detect` inspects the current project for existing agent rule files. `agent install --detected` installs only bridges that match detected files or dedicated rule directories. Built-in agent targets include `codex`, `claude`, `opencode`, `amp`/`sourcegraph-amp`, `devin`/`cognition`, `junie`/`jetbrains-junie`, `zed`, `kilo`/`kilocode`, `gitlab-duo`, `firebase-studio`, `android-studio-gemini`, `openhands`, `warp`, `trae`, `openclaw`/`claw`/`open-claw`, `gemini`, `qwen`, `copilot`/`vscode`, `cursor`, `windsurf`/`cascade`, `continue`/`continue-dev`, `goose`, `kiro`/`kiro-cli`, `aider`, `cline`, `roo`, and `generic`; use `--file PATH` for custom rule files.
 - `adapter codex|claude|gemini|opencode [PROFILE]` prints CLI-specific environment and config snippets for the active or named profile.
 - Built-in API presets include `openai`, `anthropic`, `gemini`, `azure-openai`, `openrouter`, `deepseek`, `groq`, `ollama`, `lmstudio`, `mistral`, `xai`, `together`, `fireworks`, `dashscope`, `moonshot`, `zhipu`, `siliconflow`, `volcengine`, `cerebras`, `perplexity`, `novita`, and `custom-openai`.

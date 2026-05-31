@@ -46,10 +46,12 @@ sh install.sh
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard
+py -3.12 scripts\cli_model_switcher.py setup --lite
 ```
 
 ```bash
 python3 scripts/cli_model_switcher.py setup --wizard
+python3 scripts/cli_model_switcher.py setup --lite
 ```
 
 書き込み前の dry-run:
@@ -141,6 +143,9 @@ Codex、Claude、OpenCode に入った後の入力は、そのエージェント
 ```powershell
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -212,6 +217,9 @@ ai-workspace switch claude
 ai-wgo claude
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
 ai-agent install codex claude opencode
 ai-agent install continue goose kiro
 ai-agent recommend

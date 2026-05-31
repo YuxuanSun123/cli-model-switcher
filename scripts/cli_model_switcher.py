@@ -3155,6 +3155,15 @@ def marked_block_action(path: Path) -> str:
     return "added"
 
 
+def marked_block_remove_action(path: Path) -> str:
+    if not path.exists():
+        return "missing"
+    existing = path.read_text(encoding="utf-8")
+    if AGENT_BRIDGE_MARKER_START in existing and AGENT_BRIDGE_MARKER_END in existing:
+        return "removed"
+    return "unchanged"
+
+
 def dry_run_action_label(action: str) -> str:
     return {
         "created": "would-create",
@@ -3168,6 +3177,14 @@ def dry_run_action_label(action: str) -> str:
 
 def cmd_lite(args: argparse.Namespace) -> None:
     root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
+    if args.fix and args.json:
+        raise SystemExit("lite --fix cannot be combined with --json because doctor output is human-readable.")
+    if args.fix:
+        if args.dry_run:
+            print("Dry run: would run doctor --fix before Lite setup.")
+        else:
+            cmd_doctor(argparse.Namespace(fix=True, json=False))
+
     recommendation = agent_recommendation_payload(root)
     explicit_targets = bool(getattr(args, "targets", []))
     if explicit_targets:
@@ -3177,12 +3194,23 @@ def cmd_lite(args: argparse.Namespace) -> None:
         targets = list(recommendation.get("install_targets") or recommendation.get("fallback_targets", []))
         mode = "recommended" if recommendation.get("install_targets") else "fallback"
 
+    if getattr(args, "all_common", False) and explicit_targets:
+        raise SystemExit("--all-common cannot be combined with explicit targets")
+    if getattr(args, "all_common", False):
+        targets = ["codex", "claude", "opencode", "gemini", "copilot", "cursor", "windsurf"]
+        mode = "common"
+
     specs = agent_bridge_file_specs(targets, root, [])
     block = agent_bridge_text("full")
     actions: list[dict[str, Any]] = []
     for spec in specs:
         path = spec["path"]
-        if args.json and args.dry_run:
+        if getattr(args, "undo", False):
+            if args.json and args.dry_run:
+                action = dry_run_action_label(marked_block_remove_action(path))
+            else:
+                action = remove_marked_block(path, args.dry_run)
+        elif args.json and args.dry_run:
             action = dry_run_action_label(marked_block_action(path))
         else:
             action = upsert_marked_block(path, block, args.dry_run, str(spec.get("prefix", "")))
@@ -3198,9 +3226,12 @@ def cmd_lite(args: argparse.Namespace) -> None:
         "mode": mode,
         "targets": targets,
         "dry_run": bool(args.dry_run),
+        "undo": bool(args.undo),
+        "fix": bool(args.fix),
+        "prompt": bool(args.prompt),
         "actions": actions,
         "recommendations": recommendation.get("recommendations", []),
-        "install_command": "ai-lite" if not explicit_targets else f"ai-lite {' '.join(targets)}",
+        "install_command": "ai-lite --all-common" if getattr(args, "all_common", False) else ("ai-lite" if not explicit_targets else f"ai-lite {' '.join(targets)}"),
     }
     if args.json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -3212,6 +3243,8 @@ def cmd_lite(args: argparse.Namespace) -> None:
         print("Mode: recommended from project files")
     elif mode == "fallback":
         print("Mode: fallback defaults; no project-specific agent files were detected")
+    elif mode == "common":
+        print("Mode: common bridge targets")
     else:
         print("Mode: explicit targets")
     print(f"Targets: {' '.join(targets)}")
@@ -3220,9 +3253,14 @@ def cmd_lite(args: argparse.Namespace) -> None:
         print(f"{item['action']}: {item['relative']} [{labels}]")
     if args.dry_run:
         print("Dry run only; no files were changed.")
+    elif args.undo:
+        print("Done. Lite bridge blocks were removed where present.")
     else:
         print("Done. New agent sessions should read these project instruction files.")
         print("Already running? Paste once: ai-agent prompt")
+    if args.prompt:
+        print()
+        print(agent_bridge_text("prompt").rstrip())
 
 
 def cmd_agent(args: argparse.Namespace) -> None:
@@ -5291,7 +5329,31 @@ def cmd_setup_full(args: argparse.Namespace) -> None:
     print("  ai-recall")
 
 
+def cmd_setup_lite(args: argparse.Namespace) -> None:
+    if args.dry_run:
+        print(f"Would initialize Lite state under {APP_DIR}")
+    else:
+        state = normalize_state(ensure_state())
+        save_state(state)
+        ensure_memory_files(find_project_root())
+        print(f"Initialized Lite state under {APP_DIR}")
+
+    shell = selected_setup_shell(args.shell)
+    install_shell_helpers_for_setup(args, shell)
+    print("Next commands:")
+    print("  ai-lite --dry-run")
+    print("  ai-lite")
+    print("  ai-lite --prompt")
+    print("  ai-lite --fix")
+
+
 def cmd_setup(args: argparse.Namespace) -> None:
+    selected_modes = [bool(getattr(args, "lite", False)), bool(getattr(args, "wizard", False)), bool(getattr(args, "full", False))]
+    if sum(selected_modes) > 1:
+        raise SystemExit("Choose only one setup mode: --lite, --wizard, or --full.")
+    if getattr(args, "lite", False):
+        cmd_setup_lite(args)
+        return
     if getattr(args, "wizard", False):
         cmd_setup_wizard(args)
         return
@@ -5583,6 +5645,10 @@ def build_parser() -> argparse.ArgumentParser:
     lite_parser = sub.add_parser("lite", help="One-command project agent bridge setup for simple use.")
     lite_parser.add_argument("targets", nargs="*", help="Optional agent targets. Defaults to project recommendations, then codex claude opencode.")
     lite_parser.add_argument("--dir", help="Project directory that should receive instruction files. Defaults to the current directory.")
+    lite_parser.add_argument("--all-common", action="store_true", help="Install common bridges for Codex, Claude, OpenCode, Gemini, Copilot, Cursor, and Windsurf.")
+    lite_parser.add_argument("--fix", action="store_true", help="Run doctor --fix before Lite setup.")
+    lite_parser.add_argument("--prompt", action="store_true", help="Print the prompt for already-running agents after Lite setup.")
+    lite_parser.add_argument("--undo", action="store_true", help="Remove Lite/agent bridge blocks from selected files.")
     lite_parser.add_argument("--dry-run", action="store_true")
     lite_parser.add_argument("--json", action="store_true")
     lite_parser.set_defaults(func=cmd_lite)
@@ -5975,6 +6041,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--bin-dir", help="Directory for POSIX executable shims when using Linux/macOS shells.")
     setup_parser.add_argument("--no-bin", action="store_true", help="Skip POSIX executable shims when using Linux/macOS shells.")
     setup_parser.add_argument("--with-cmd", action="store_true", help="Also install cmd.exe wrappers on Windows.")
+    setup_parser.add_argument("--lite", action="store_true", help="Install only the minimal Lite bridge workflow and shell helpers.")
     setup_parser.add_argument("--full", action="store_true", help="Create recommended profiles, strategy aliases, and shell helpers.")
     setup_parser.add_argument("--wizard", action="store_true", help="Interactively detect tools, install recipes, choose an active profile, and run checks.")
     setup_parser.add_argument("--yes", "-y", action="store_true", help="Use wizard defaults without prompting.")

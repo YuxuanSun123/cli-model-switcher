@@ -43,22 +43,26 @@ If you already cloned the repository, run the installer locally:
 
 ```powershell
 .\install.ps1
+.\install.ps1 -Lite
 ```
 
 ```bash
 sh install.sh
+sh install.sh --lite
 ```
 
 Manual setup from the repository root is still available:
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard
+py -3.12 scripts\cli_model_switcher.py setup --lite
 ```
 
 Linux or macOS:
 
 ```bash
 python3 scripts/cli_model_switcher.py setup --wizard
+python3 scripts/cli_model_switcher.py setup --lite
 ```
 
 Dry-run the installers before writing anything:
@@ -113,11 +117,15 @@ Use `ai-lite` when you want the simple version: one command that installs the be
 ```powershell
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
+ai-lite --all-common
 ai-lite zed kilo
 ai-lite --json
 ```
 
-With no targets, `ai-lite` scans the current project and installs the shortest matching bridge. If it cannot detect an agent-specific setup, it falls back to `codex claude opencode`.
+With no targets, `ai-lite` scans the current project and installs the shortest matching bridge. If it cannot detect an agent-specific setup, it falls back to `codex claude opencode`. Use `setup --lite` or installer `--lite` when you want only this minimal bridge workflow and shell helpers.
 
 ## Terminal Workspaces
 

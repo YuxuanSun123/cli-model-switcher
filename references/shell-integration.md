@@ -127,6 +127,9 @@ ai-use code-fast
 ai-adapter opencode opencode-openrouter
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
 ai-session start claude --backend wt
 ai-session list
 ai-handoff claude "Review the current Codex work and look for regressions."
@@ -179,6 +182,9 @@ ai-use code-fast
 ai-adapter opencode opencode-openrouter
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
 ai-session start claude --backend print
 ai-session list
 ai-handoff claude "Review the current Codex work." --no-start

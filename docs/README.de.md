@@ -46,10 +46,12 @@ Manuelle Einrichtung aus dem Repository-Root:
 
 ```powershell
 py -3.12 scripts\cli_model_switcher.py setup --wizard
+py -3.12 scripts\cli_model_switcher.py setup --lite
 ```
 
 ```bash
 python3 scripts/cli_model_switcher.py setup --wizard
+python3 scripts/cli_model_switcher.py setup --lite
 ```
 
 Dry-run vor Aenderungen:
@@ -141,6 +143,9 @@ Sobald du in Codex, Claude oder OpenCode bist, gehoert deine Eingabe diesem Agen
 ```powershell
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
 ai-agent install codex claude opencode
 ai-agent install gemini qwen copilot cursor windsurf aider cline roo
 ai-agent install continue goose kiro
@@ -212,6 +217,9 @@ ai-workspace switch claude
 ai-wgo claude
 ai-lite
 ai-lite --dry-run
+ai-lite --fix
+ai-lite --prompt
+ai-lite --undo
 ai-agent install codex claude opencode
 ai-agent install continue goose kiro
 ai-agent recommend

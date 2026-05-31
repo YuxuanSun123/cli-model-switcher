@@ -83,6 +83,7 @@ def main() -> int:
     for expected in [
         "install.sh",
         "install.ps1",
+        "install.sh --lite",
         "ai-workspace",
         "ai-lite",
         "ai-agent",
@@ -95,7 +96,12 @@ def main() -> int:
         "ai-agent platforms",
         "ai-agent recommend",
         "ai-agent recommend --json",
+        "setup --lite",
         "ai-lite --dry-run",
+        "ai-lite --fix",
+        "ai-lite --prompt",
+        "ai-lite --undo",
+        "ai-lite --all-common",
         "ai-agent platforms amp devin junie zed kilo",
         "ai-agent install amp devin junie zed kilo",
         "ai-agent install --detected",
@@ -137,7 +143,7 @@ def main() -> int:
                 fail(f"{relative} is missing language navigation entry: {expected}")
         if "简体中文" not in localized and "簡體中文" not in localized:
             fail(f"{relative} is missing Simplified Chinese language navigation")
-        for expected in ["ai-lite", "ai-agent recommend", "ai-agent platforms amp devin junie zed kilo", "ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae"]:
+        for expected in ["setup --lite", "ai-lite", "ai-lite --fix", "ai-lite --prompt", "ai-lite --undo", "ai-agent recommend", "ai-agent platforms amp devin junie zed kilo", "ai-agent install gitlab-duo firebase-studio android-studio-gemini openhands warp trae"]:
             if expected not in localized:
                 fail(f"{relative} is missing expanded agent platform command: {expected}")
 
@@ -148,7 +154,7 @@ def main() -> int:
                 fail(f"{relative} is missing installer next-step hint: {expected}")
 
     script = (root / "scripts" / "cli_model_switcher.py").read_text(encoding="utf-8")
-    for command in ["about", "ayatori", "lite", "ai-lite", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
+    for command in ["about", "ayatori", "lite", "ai-lite", "all_common", "--all-common", "--undo", "--prompt", "--fix", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
 

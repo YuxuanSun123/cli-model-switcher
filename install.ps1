@@ -7,6 +7,7 @@ param(
   [string]$Shell = "auto",
   [string]$Recipes = "opencode-openrouter,local-ollama",
   [string]$Active = "opencode-openrouter",
+  [switch]$Lite,
   [switch]$Full,
   [switch]$NoInstall,
   [switch]$DryRun
@@ -48,7 +49,12 @@ function Invoke-Setup {
   }
 
   $SetupArgs = @($Helper, "setup")
-  if ($Full) {
+  if ($Lite -and $Full) {
+    throw "Choose only one install mode: -Lite or -Full."
+  }
+  if ($Lite) {
+    $SetupArgs += "--lite"
+  } elseif ($Full) {
     $SetupArgs += "--full"
   } else {
     $SetupArgs += @("--wizard", "--yes", "--recipes", $Recipes, "--active", $Active)

@@ -26,6 +26,7 @@ Options:
   --shell NAME       Shell helper target: auto, bash, zsh, or fish. Defaults to auto.
   --recipes LIST     Comma-separated setup wizard recipes. Defaults to opencode-openrouter,local-ollama.
   --active NAME      Active setup profile. Defaults to opencode-openrouter.
+  --lite             Use setup --lite for minimal ai-lite and shell helper setup.
   --full             Use setup --full instead of setup --wizard --yes.
   --no-install       Initialize profiles without writing shell helper files.
   --dry-run          Print and validate the planned install without cloning or writing files.
@@ -60,7 +61,19 @@ while [ "$#" -gt 0 ]; do
       shift 2
       ;;
     --full)
+      if [ "$mode" != "wizard" ]; then
+        echo "Choose only one install mode: --lite or --full." >&2
+        exit 2
+      fi
       mode="full"
+      shift
+      ;;
+    --lite)
+      if [ "$mode" != "wizard" ]; then
+        echo "Choose only one install mode: --lite or --full." >&2
+        exit 2
+      fi
+      mode="lite"
       shift
       ;;
     --no-install)
@@ -121,7 +134,9 @@ run_setup() {
   fi
 
   set -- "$helper" setup
-  if [ "$mode" = "full" ]; then
+  if [ "$mode" = "lite" ]; then
+    set -- "$@" --lite
+  elif [ "$mode" = "full" ]; then
     set -- "$@" --full
   else
     set -- "$@" --wizard --yes --recipes "$recipes" --active "$active"
