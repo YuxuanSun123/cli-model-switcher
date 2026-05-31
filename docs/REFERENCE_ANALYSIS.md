@@ -36,10 +36,12 @@ This project was compared against three open source CLI AI tools on 2026-05-31. 
 - The report checks command lookup, API preset metadata, base URL validity, API key env references, memory path presence, and local model capability metadata.
 - JSON output is available for automation, and `--strict` exits non-zero when any profile has warnings or failures.
 - The report intentionally avoids printing secret values; it only reports env var names and availability.
+- Added `policy` / `ai-policy` for provider allow/deny rules inspired by OpenCode's provider policy separation.
+- Added `template` / `ai-template` for reusable prompt and handoff text inspired by LLM templates and AIChat role prelude patterns.
+- Added `config explain` / `ai-config explain` for sysinfo-style diagnostics that identify project, global, default, and environment sources.
+- Added `providers.d/*.json` external API presets so teams can extend the provider catalog without editing the core script.
 
 ## Follow-Up Candidates
 
-- Add provider allow/deny policy rules inspired by OpenCode's provider policy design.
-- Add named prompt/agent workflow templates inspired by LLM templates and AIChat roles.
 - Add an optional model-catalog sync command inspired by AIChat's `models.yaml` update flow.
 - Add structured issue-report export that redacts local paths and env details more aggressively.

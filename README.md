@@ -43,6 +43,10 @@ ai-report
 - Install one-step recipes for common stacks such as OpenCode + OpenRouter, Claude Code, Gemini CLI, DeepSeek, Ollama, and LM Studio.
 - Share memory across agents through a neutral `AI_CLI_MEMORY` context file.
 - Manage API presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, Groq, Mistral, xAI, Together, Fireworks, DashScope, Moonshot, Zhipu, SiliconFlow, Volcengine, Cerebras, Perplexity, Novita, Azure OpenAI, and custom OpenAI-compatible endpoints.
+- Load extra model API presets from local `providers.d/*.json` files.
+- Add provider allow/deny guardrails with `ai-policy`.
+- Reuse prompt and handoff text with `ai-template`.
+- Explain effective global/project/default config sources with `ai-config explain`.
 - Generate shell helpers for PowerShell, cmd.exe, Bash, Zsh, fish, and Nushell.
 - Offer `ai-lite` as a minimal one-command path for users who only want project agent-bridge setup.
 - Offer `ai-menu` as a small numbered menu for common setup, diagnosis, and bridge actions.
@@ -189,6 +193,67 @@ ai-report --strict
 ```
 
 The report checks command availability, API presets, base URLs, API key environment references, local model capability metadata, and memory paths without printing secret values.
+
+## Policy, Templates, and Config
+
+Use provider policies when a machine or project should block accidental use of a provider or gateway:
+
+```powershell
+ai-policy list
+ai-policy deny openrouter
+ai-policy allow openrouter
+ai-policy check openrouter
+ai-policy remove 1
+ai-policy deny provider openai --project
+```
+
+Rules are evaluated in order, and the last matching allow/deny wins. `ai-use`, `ai-current --shell`, `ai-run`, `ai-session`, and `ai-workspace` respect deny rules.
+
+Use templates for repeatable handoff, review, or role prompts:
+
+```powershell
+ai-template set handoff --description "handoff prompt" --prompt 'Handoff to $agent: $input' --default agent=claude
+ai-template list
+ai-template show handoff
+ai-template use handoff --input "review the latest diff"
+ai-template use handoff --param agent=codex --input "continue implementation"
+```
+
+Use config explanation when a profile behaves differently than expected:
+
+```powershell
+ai-config explain
+ai-config explain --profile opencode-openrouter
+ai-config explain --json
+```
+
+It reports whether each value came from project config, global state, defaults, or environment overrides.
+
+## External Provider Presets
+
+Put private or team API presets in `~/.ai-cli-switcher/providers.d/*.json`, then use them like built-in presets:
+
+```json
+{
+  "name": "company-ai",
+  "label": "Company AI Gateway",
+  "kind": "openai-compatible",
+  "model": "company-code",
+  "env": {
+    "OPENAI_BASE_URL": "https://gateway.example.com/v1",
+    "OPENAI_API_KEY": "${COMPANY_AI_KEY}"
+  },
+  "aliases": ["corp"]
+}
+```
+
+```powershell
+ai-api providers
+ai-api show corp
+ai-api apply company corp --command opencode --model company-code --use
+```
+
+External presets may also use `{ "presets": { ... }, "aliases": { ... } }` for multi-provider files. Direct-looking secrets are refused; store keys in environment variables and reference them as `${ENV_NAME}`.
 
 ## Terminal Workspaces
 
@@ -356,7 +421,14 @@ ai-session start claude
 ai-handoff claude "Review this task from another angle."
 
 ai-profile gateway --command opencode --api custom-openai --base-url https://gateway.example/v1 --api-key-env GATEWAY_API_KEY --use
+ai-api providers
 ai-api test gateway --skip-network
+
+ai-policy deny openrouter
+ai-policy check openrouter
+ai-template set handoff --prompt 'Handoff to $agent: $input' --default agent=claude
+ai-template use handoff --input "review this change"
+ai-config explain --profile codex
 
 ai-remember --scope global --tag preference "Prefer concise answers."
 ai-recall --tag preference
@@ -381,7 +453,7 @@ python3 scripts/cli_model_switcher.py install-unix --shell fish
 python3 scripts/cli_model_switcher.py install-bin
 ```
 
-On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-report`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
+On Linux, macOS, and WSL, `install-unix` also installs executable shims such as `ai-lite`, `ai-menu`, `ai-report`, `ai-policy`, `ai-template`, `ai-config`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` into `~/.local/bin` by default. These shims matter for agent-side switching because agent shell tools often run non-interactive shells that do not load your Bash/Zsh/fish functions.
 
 Keep the shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select`; they are the pieces that can update the current shell environment. The executable shims are for direct commands, agent-side bridges, and non-interactive shells. `install-unix` adds the shim directory to interactive Bash/Zsh/fish helpers; if an agent still cannot find `ai-workspace`, add `export PATH="$HOME/.local/bin:$PATH"` to Bash/Zsh or run `fish_add_path ~/.local/bin` in fish.
 
@@ -398,6 +470,9 @@ Generated helpers include:
 - `ai-strategy`
 - `ai-recipe`
 - `ai-adapter`
+- `ai-policy`
+- `ai-template`
+- `ai-config`
 - `ai-lite`
 - `ai-menu`
 - `ai-report`

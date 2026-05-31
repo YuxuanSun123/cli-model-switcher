@@ -99,6 +99,21 @@ ai-recipe install claude-native gemini-cli opencode-deepseek --active claude
 - `local-lmstudio`
 - `custom-gateway`
 
+## ポリシー、テンプレート、設定
+
+診断と自動化に使う追加コマンド:
+
+```powershell
+ai-policy deny openrouter
+ai-policy check openrouter
+ai-template set handoff --prompt 'Handoff to $agent: $input' --default agent=claude
+ai-template use handoff --input "review the latest diff"
+ai-config explain --profile codex
+ai-api providers
+```
+
+`ai-policy` は意図しないプロバイダ利用を防ぎ、`ai-template` は再利用できるプロンプトを保存し、`ai-config explain` は有効な設定値の出所を表示します。`providers.d/*.json` で private API preset も追加できます。
+
 ## ターミナル作業領域
 
 複数のエージェントを 1 つのターミナル画面で扱いたい場合は `ai-workspace` を使います。

@@ -10,6 +10,10 @@ This project currently follows a lightweight release format while it is still a 
 
 - `menu` / `ai-menu`, a compact numbered menu for Lite setup, project recommendations, supported platforms, already-running-agent prompt text, doctor checks, and path lookup.
 - `report` / `ai-report`, a profile readiness matrix inspired by reviewed CLI AI tools, with JSON and strict modes.
+- `policy` / `ai-policy` for provider allow/deny guardrails, including global and project-local rules.
+- `template` / `ai-template` for reusable prompt and handoff templates with variable interpolation.
+- `config explain` / `ai-config explain` for effective config source diagnostics.
+- `providers.d/*.json` external API presets that can be used by `api list`, `api show`, `api apply`, and profile/model commands.
 - Reference analysis for LLM, AIChat, and OpenCode under `docs/REFERENCE_ANALYSIS.md`.
 
 ## [0.4.0] - 2026-05-31

@@ -47,8 +47,15 @@ py -3.12 scripts/cli_model_switcher.py list
 py -3.12 scripts/cli_model_switcher.py paths
 py -3.12 scripts/cli_model_switcher.py api list
 py -3.12 scripts/cli_model_switcher.py api show openrouter
+py -3.12 scripts/cli_model_switcher.py api providers
 py -3.12 scripts/cli_model_switcher.py api apply opencode openrouter --command opencode --model anthropic/claude-sonnet-4.5 --use
 py -3.12 scripts/cli_model_switcher.py api test opencode --skip-network
+py -3.12 scripts/cli_model_switcher.py policy list
+py -3.12 scripts/cli_model_switcher.py policy deny openrouter
+py -3.12 scripts/cli_model_switcher.py policy check openrouter
+py -3.12 scripts/cli_model_switcher.py template set handoff --prompt 'Handoff to $agent: $input' --default agent=claude
+py -3.12 scripts/cli_model_switcher.py template use handoff --input "review this diff"
+py -3.12 scripts/cli_model_switcher.py config explain --profile codex
 py -3.12 scripts/cli_model_switcher.py lite
 py -3.12 scripts/cli_model_switcher.py lite --dry-run
 py -3.12 scripts/cli_model_switcher.py lite --fix
@@ -193,8 +200,11 @@ Prefer script commands over manual JSON edits:
 - `status` prints the active profile, scope, command status, and memory path.
 - `profile NAME --command COMMAND --model MODEL --alias SHORT --use` creates or updates a profile, optionally aliases it, and activates it in one step.
 - `profile NAME --command COMMAND --api PRESET --model MODEL --use` creates or updates a profile with a model API preset in one step.
-- `api list`, `api show PRESET`, and `api apply PROFILE PRESET --command COMMAND --use` manage built-in API presets.
+- `api list`, `api show PRESET`, `api providers`, and `api apply PROFILE PRESET --command COMMAND --use` manage built-in and `providers.d/*.json` API presets.
 - `api test PROFILE` checks command availability, key env vars, base URL format, and OpenAI-compatible `/models` connectivity unless `--skip-network` is used.
+- `policy list|allow|deny|check|remove` manages provider allow/deny rules. Shorthand is supported, such as `policy deny openrouter` and `policy remove 1`; `--project` stores rules in `.ai-cli-switcher.json`.
+- `template list|show|set|use|remove|path` manages reusable prompt templates in `~/.ai-cli-switcher/templates`. Use `$input` and custom variables such as `$agent`; `template use` can read stdin when `--input` is omitted.
+- `config explain --profile NAME --json` shows whether active/profile values came from project config, global state, defaults, or environment overrides.
 - `lite [TARGET...]` is the simplified one-command path. It scans the current project, installs the shortest matching agent bridge, and falls back to `codex claude opencode` when no project-specific rule files are detected. Use `--dry-run` to preview, `--fix` to run `doctor --fix` first, `--prompt` to print instructions for already-running agents, `--undo` to remove managed bridge blocks, `--all-common` for common agent targets, and optional targets such as `lite zed kilo` to force a small target set.
 - `menu` opens a compact numbered menu for common tasks such as Lite preview/install, common bridge preview, `agent prompt`, `agent recommend`, `agent platforms`, `doctor`, and `paths`. Use `menu --list` to print choices and `menu --choice NUMBER_OR_KEY` for non-interactive terminals or scripts.
 - `report` prints a readiness matrix for all profiles or one `--profile`, covering command lookup, API preset, base URL, API key env references, model capabilities, and memory path availability. Use `--json` for automation and `--strict` to fail on warnings.
@@ -229,12 +239,12 @@ Prefer script commands over manual JSON edits:
 - `doctor` checks command availability, env vars, state files, and memory files.
 - `doctor --fix` repairs missing or corrupt state, invalid active profiles, broken aliases, missing memory files, and stale managed wrappers when possible. Use `--json` for automation.
 - `secret audit --scope all|state|project|memory` scans profiles and memory without printing secret values. Use `--fail` in scripts to return nonzero when findings exist.
-- `install-powershell --profile $PROFILE` writes `ayatori`, `ayatori-nexus`, `ai-about`, `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-lite`, `ai-menu`, `ai-report`, `ai-agent`, `ai-session`, `ai-workspace`, `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-page`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
-- `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ayatori.cmd`, `ai-about.cmd`, `ai-use.cmd`, `ai-lite.cmd`, `ai-menu.cmd`, `ai-report.cmd`, `ai-agent.cmd`, `ai-workspace.cmd`, `ai-wup.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
+- `install-powershell --profile $PROFILE` writes `ayatori`, `ayatori-nexus`, `ai-about`, `ai-use`, `ai-current`, `ai-status`, `ai-paths`, `ai-list`, `ai-profile`, `ai-api`, `ai-model`, `ai-strategy`, `ai-recipe`, `ai-adapter`, `ai-policy`, `ai-template`, `ai-config`, `ai-lite`, `ai-menu`, `ai-report`, `ai-agent`, `ai-session`, `ai-workspace`, `ai-ws`, `ai-wup`, `ai-wgo`, `ai-wpick`, `ai-handoff`, `ai-select`, `ai-doctor`, `ai-secret`, `ai-remember`, `ai-recall`, `ai-memory`, `ai-page`, `ai-open-memory`, and `ai-run` functions to the current PowerShell profile.
+- `install-cmd --dir DIR` writes native cmd.exe `.cmd` wrappers such as `ayatori.cmd`, `ai-about.cmd`, `ai-use.cmd`, `ai-policy.cmd`, `ai-template.cmd`, `ai-config.cmd`, `ai-lite.cmd`, `ai-menu.cmd`, `ai-report.cmd`, `ai-agent.cmd`, `ai-workspace.cmd`, `ai-wup.cmd`, `ai-page.cmd`, and `ai-run.cmd`.
 - `install-shell --output FILE` writes Bash/Zsh helper functions.
 - `install-fish --output FILE` writes fish helper functions.
 - `install-unix --shell auto|bash|zsh|fish` installs Linux/macOS shell helpers, updates the relevant shell profile, and writes POSIX executable shims into `~/.local/bin` by default.
-- `install-bin --bin-dir DIR` writes POSIX executable shims such as `ayatori`, `ayatori-nexus`, `ai-about`, `ai-lite`, `ai-menu`, `ai-report`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` for non-interactive Linux/macOS/WSL agent shells. Keep shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select` because only sourced functions can update the current shell environment.
+- `install-bin --bin-dir DIR` writes POSIX executable shims such as `ayatori`, `ayatori-nexus`, `ai-about`, `ai-lite`, `ai-menu`, `ai-report`, `ai-policy`, `ai-template`, `ai-config`, `ai-workspace`, `ai-agent`, `ai-wup`, and `ai-wgo` for non-interactive Linux/macOS/WSL agent shells. Keep shell functions for `ai-use`, `ai-select`, and branded `ayatori use` / `ayatori select` because only sourced functions can update the current shell environment.
 - `current --shell` supports `powershell`, `cmd`, `bash`, `zsh`, `fish`, and `nu`.
 - Set `AI_CLI_SWITCHER_PYTHON` when wrappers need a specific Python executable, such as `python3` or a full interpreter path. The generated wrappers already try common launchers such as `py -3.12` when the variable is not set.
 

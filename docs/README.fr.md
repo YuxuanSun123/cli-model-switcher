@@ -99,6 +99,21 @@ Recettes intégrées :
 - `local-lmstudio`
 - `custom-gateway`
 
+## Politiques, modeles et configuration
+
+Commandes de diagnostic et d'automatisation :
+
+```powershell
+ai-policy deny openrouter
+ai-policy check openrouter
+ai-template set handoff --prompt 'Handoff to $agent: $input' --default agent=claude
+ai-template use handoff --input "review the latest diff"
+ai-config explain --profile codex
+ai-api providers
+```
+
+`ai-policy` evite l'utilisation accidentelle d'un fournisseur, `ai-template` conserve des prompts reutilisables, `ai-config explain` indique la source des valeurs effectives, et `providers.d/*.json` ajoute des presets API prives.
+
 ## Espaces Terminal
 
 Utilisez `ai-workspace` pour garder plusieurs agents dans une seule interface terminal.

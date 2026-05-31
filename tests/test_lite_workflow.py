@@ -42,6 +42,20 @@ def run_cli_env(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[
     )
 
 
+def run_cli_env_no_check(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    merged_env = os.environ.copy()
+    merged_env.update(env)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        env=merged_env,
+    )
+
+
 def copy_fixture(name: str, parent: Path) -> Path:
     source = FIXTURES / name
     target = parent / name
@@ -161,12 +175,150 @@ def test_readiness_report() -> None:
             raise AssertionError(f"report --profile codex: unexpected profiles {one.get('profiles')}")
 
 
+def test_policy_controls_active_use() -> None:
+    with tempfile.TemporaryDirectory(prefix="ai-policy-") as raw:
+        home = Path(raw) / "switcher-home"
+        env = {"AI_CLI_SWITCHER_HOME": str(home)}
+        run_cli_env(env, "policy", "deny", "codex")
+
+        denied = json.loads(run_cli_env(env, "policy", "check", "codex", "--json").stdout)
+        if denied.get("decision") != "deny":
+            raise AssertionError(f"policy check: expected deny, got {denied}")
+
+        blocked = run_cli_env_no_check(env, "use", "codex")
+        if blocked.returncode == 0:
+            raise AssertionError("policy deny: expected ai-use codex to fail")
+        if "Policy denied provider 'codex'" not in (blocked.stderr + blocked.stdout):
+            raise AssertionError(f"policy deny: unexpected failure\nstdout:{blocked.stdout}\nstderr:{blocked.stderr}")
+
+        blocked_current = run_cli_env_no_check(env, "current", "--shell", "powershell")
+        if blocked_current.returncode == 0:
+            raise AssertionError("policy deny: expected ai-current --shell powershell to fail")
+
+        blocked_session = run_cli_env_no_check(env, "session", "start", "codex", "--backend", "print")
+        if blocked_session.returncode == 0:
+            raise AssertionError("policy deny: expected ai-session start codex to fail")
+
+        blocked_workspace = run_cli_env_no_check(env, "workspace", "start", "codex", "--backend", "print")
+        if blocked_workspace.returncode == 0:
+            raise AssertionError("policy deny: expected ai-workspace start codex to fail")
+
+        run_cli_env(env, "policy", "allow", "codex")
+        allowed = json.loads(run_cli_env(env, "policy", "check", "codex", "--json").stdout)
+        if allowed.get("decision") != "allow":
+            raise AssertionError(f"policy check: expected allow, got {allowed}")
+        run_cli_env(env, "use", "codex")
+
+        listed = json.loads(run_cli_env(env, "policy", "list", "--json").stdout)
+        if len(listed.get("policies", [])) != 2:
+            raise AssertionError(f"policy list: expected two rules, got {listed}")
+        run_cli_env(env, "policy", "remove", "1")
+
+
+def test_prompt_templates() -> None:
+    with tempfile.TemporaryDirectory(prefix="ai-template-") as raw:
+        home = Path(raw) / "switcher-home"
+        env = {"AI_CLI_SWITCHER_HOME": str(home)}
+
+        empty = json.loads(run_cli_env(env, "template", "list", "--json").stdout)
+        if empty.get("templates") != []:
+            raise AssertionError(f"template list: expected empty JSON list, got {empty}")
+
+        run_cli_env(
+            env,
+            "template",
+            "set",
+            "handoff",
+            "--description",
+            "handoff prompt",
+            "--system",
+            "Use $style style.",
+            "--prompt",
+            "Handoff to $agent: $input",
+            "--default",
+            "agent=claude",
+            "--default",
+            "style=concise",
+        )
+
+        shown = json.loads(run_cli_env(env, "template", "show", "handoff", "--json").stdout)
+        if shown.get("defaults", {}).get("agent") != "claude":
+            raise AssertionError(f"template show: missing defaults in {shown}")
+
+        rendered = run_cli_env(env, "template", "use", "handoff", "--input", "review this diff").stdout
+        if "Use concise style." not in rendered or "Handoff to claude: review this diff" not in rendered:
+            raise AssertionError(f"template use: unexpected rendering\n{rendered}")
+
+        overridden = run_cli_env(env, "template", "use", "handoff", "--input", "continue", "--param", "agent=codex").stdout
+        if "Handoff to codex: continue" not in overridden:
+            raise AssertionError(f"template use --param: unexpected rendering\n{overridden}")
+
+
+def test_config_explain_is_readonly() -> None:
+    with tempfile.TemporaryDirectory(prefix="ai-config-") as raw:
+        home = Path(raw) / "switcher-home"
+        env = {"AI_CLI_SWITCHER_HOME": str(home)}
+        payload = json.loads(run_cli_env(env, "config", "explain", "--profile", "codex", "--json").stdout)
+        if payload.get("state", {}).get("exists") is not False:
+            raise AssertionError(f"config explain: expected missing state, got {payload.get('state')}")
+        if payload.get("active", {}).get("source") != "default":
+            raise AssertionError(f"config explain: expected default active source, got {payload.get('active')}")
+        command_source = payload.get("profile", {}).get("fields", {}).get("command", {}).get("source")
+        if command_source != "default":
+            raise AssertionError(f"config explain: expected default command source, got {command_source}")
+        if (home / "state.json").exists():
+            raise AssertionError("config explain should not create state.json")
+
+
+def test_external_provider_presets() -> None:
+    with tempfile.TemporaryDirectory(prefix="ai-providers-") as raw:
+        home = Path(raw) / "switcher-home"
+        env = {"AI_CLI_SWITCHER_HOME": str(home)}
+        providers = home / "providers.d"
+        providers.mkdir(parents=True)
+        (providers / "company.json").write_text(
+            json.dumps(
+                {
+                    "name": "company-ai",
+                    "label": "Company AI",
+                    "kind": "openai-compatible",
+                    "model": "company-code",
+                    "env": {
+                        "OPENAI_BASE_URL": "https://gateway.example.com/v1",
+                        "OPENAI_API_KEY": "${COMPANY_AI_KEY}",
+                    },
+                    "aliases": ["corp"],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        shown = json.loads(run_cli_env(env, "api", "show", "corp", "--json").stdout)
+        if shown.get("name") != "company-ai" or not shown.get("source"):
+            raise AssertionError(f"api show external alias: unexpected payload {shown}")
+
+        providers_payload = json.loads(run_cli_env(env, "api", "providers", "--json").stdout)
+        if "company-ai" not in providers_payload.get("external_presets", {}):
+            raise AssertionError(f"api providers: missing company-ai in {providers_payload}")
+
+        run_cli_env(env, "api", "apply", "company", "corp", "--command", "opencode", "--model", "company-code")
+        report = json.loads(run_cli_env(env, "report", "--profile", "company", "--json").stdout)
+        profile = report.get("profiles", [{}])[0]
+        if profile.get("api_provider") != "company-ai":
+            raise AssertionError(f"report external provider: expected company-ai, got {profile}")
+
+
 def main() -> int:
     test_fixture_recommendations()
     test_mixed_and_common_modes()
     test_undo_preview()
     test_menu_shortcuts()
     test_readiness_report()
+    test_policy_controls_active_use()
+    test_prompt_templates()
+    test_config_explain_is_readonly()
+    test_external_provider_presets()
     print("Lite workflow fixtures passed.")
     return 0
 

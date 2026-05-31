@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
 import shutil
 import socket
+import string
 import subprocess
 import sys
 import urllib.error
@@ -22,6 +24,8 @@ APP_DIR = Path(os.environ.get("AI_CLI_SWITCHER_HOME", Path.home() / ".ai-cli-swi
 STATE_PATH = APP_DIR / "state.json"
 LEGACY_MEMORY_PATH = APP_DIR / "memory.md"
 MEMORY_DIR = APP_DIR / "memory"
+TEMPLATES_DIR = APP_DIR / "templates"
+PROVIDERS_DIR = APP_DIR / "providers.d"
 GLOBAL_MEMORY_PATH = MEMORY_DIR / "global.md"
 SESSION_MEMORY_PATH = MEMORY_DIR / "session.md"
 CONTEXT_MEMORY_PATH = MEMORY_DIR / "context.md"
@@ -279,6 +283,9 @@ POSIX_BIN_COMMANDS: dict[str, list[str]] = {
     "ai-strategy": ["strategy"],
     "ai-recipe": ["recipe"],
     "ai-adapter": ["adapter"],
+    "ai-policy": ["policy"],
+    "ai-template": ["template"],
+    "ai-config": ["config"],
     "ai-lite": ["lite"],
     "ai-menu": ["menu"],
     "ai-report": ["report"],
@@ -820,18 +827,114 @@ def clone_default_profiles() -> dict[str, dict[str, Any]]:
     return json.loads(json.dumps(DEFAULT_PROFILES))
 
 
+def provider_name_is_valid(name: str) -> bool:
+    return bool(re.match(r"^[a-z0-9][a-z0-9_.-]*$", name))
+
+
+def external_provider_payloads() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    presets: dict[str, dict[str, Any]] = {}
+    aliases: dict[str, str] = {}
+    if not PROVIDERS_DIR.exists():
+        return presets, aliases
+    for path in sorted(PROVIDERS_DIR.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Invalid JSON in provider preset file {path}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Expected JSON object in provider preset file {path}")
+
+        file_presets: dict[str, Any]
+        file_aliases: dict[str, str] = {}
+        if isinstance(payload.get("presets"), dict):
+            file_presets = payload["presets"]
+            raw_aliases = payload.get("aliases", {})
+            if isinstance(raw_aliases, dict):
+                file_aliases.update({str(k).strip().lower(): str(v).strip().lower() for k, v in raw_aliases.items()})
+        elif payload.get("name"):
+            name = str(payload["name"]).strip().lower()
+            file_presets = {name: {k: v for k, v in payload.items() if k not in {"name", "alias", "aliases"}}}
+            raw_aliases = payload.get("aliases", payload.get("alias", []))
+            if isinstance(raw_aliases, str):
+                raw_aliases = [raw_aliases]
+            if isinstance(raw_aliases, list):
+                for alias in raw_aliases:
+                    file_aliases[str(alias).strip().lower()] = name
+        else:
+            raise SystemExit(f"Provider preset file {path} must contain either 'name' or 'presets'.")
+
+        for raw_name, raw_preset in file_presets.items():
+            name = str(raw_name).strip().lower()
+            if not provider_name_is_valid(name):
+                raise SystemExit(f"Invalid provider preset name {raw_name!r} in {path}")
+            if name in API_PRESETS:
+                raise SystemExit(f"External provider preset {name!r} in {path} conflicts with a built-in preset.")
+            if name in presets:
+                raise SystemExit(f"External provider preset {name!r} is defined more than once.")
+            if not isinstance(raw_preset, dict):
+                raise SystemExit(f"Provider preset {name!r} in {path} must be a JSON object.")
+            preset = json.loads(json.dumps(raw_preset))
+            preset.setdefault("label", name)
+            preset.setdefault("kind", "openai-compatible")
+            preset.setdefault("model", "default")
+            preset.setdefault("env", {})
+            preset.setdefault("pages", {})
+            preset.setdefault("notes", [])
+            if not isinstance(preset["env"], dict):
+                raise SystemExit(f"Provider preset {name!r} in {path} has non-object env.")
+            for key, value in preset["env"].items():
+                text = str(value)
+                if env_reference_name(text):
+                    continue
+                for secret_name, pattern in SECRET_PATTERNS:
+                    if pattern.search(text):
+                        raise SystemExit(f"Refusing possible {secret_name} in provider preset {name!r} env {key!r} at {path}. Use ${{ENV_NAME}}.")
+            preset["source"] = str(path)
+            presets[name] = preset
+
+        for alias, target in file_aliases.items():
+            if not alias:
+                continue
+            if not provider_name_is_valid(alias):
+                raise SystemExit(f"Invalid external provider alias {alias!r} in {path}")
+            if alias in API_PRESET_ALIASES or alias in API_PRESETS:
+                raise SystemExit(f"External provider alias {alias!r} in {path} conflicts with a built-in preset or alias.")
+            if alias in aliases:
+                raise SystemExit(f"External provider alias {alias!r} is defined more than once.")
+            if target not in presets and target not in file_presets:
+                raise SystemExit(f"External provider alias {alias!r} in {path} points to unknown preset {target!r}.")
+            aliases[alias] = target
+    return presets, aliases
+
+
+def all_api_presets() -> dict[str, dict[str, Any]]:
+    external, _ = external_provider_payloads()
+    merged = json.loads(json.dumps(API_PRESETS))
+    merged.update(external)
+    return merged
+
+
+def all_api_preset_aliases() -> dict[str, str]:
+    _, external_aliases = external_provider_payloads()
+    merged = dict(API_PRESET_ALIASES)
+    merged.update(external_aliases)
+    return merged
+
+
 def resolve_api_preset_name(name: str) -> str:
     key = name.strip().lower()
-    key = API_PRESET_ALIASES.get(key, key)
-    if key not in API_PRESETS:
-        available = ", ".join(sorted(API_PRESETS))
+    aliases = all_api_preset_aliases()
+    presets = all_api_presets()
+    key = aliases.get(key, key)
+    if key not in presets:
+        available = ", ".join(sorted(presets))
         raise SystemExit(f"Unknown API preset {name!r}. Available: {available}")
     return key
 
 
 def clone_api_preset(name: str) -> tuple[str, dict[str, Any]]:
     key = resolve_api_preset_name(name)
-    return key, json.loads(json.dumps(API_PRESETS[key]))
+    return key, json.loads(json.dumps(all_api_presets()[key]))
 
 
 def env_ref(name: str) -> str:
@@ -1183,6 +1286,7 @@ def normalize_state(state: dict[str, Any]) -> dict[str, Any]:
     state.setdefault("sessions", {})
     state.setdefault("workspaces", {})
     state.setdefault("workspace_targets", [])
+    state.setdefault("policies", [])
     model_aliases = state.setdefault("model_aliases", {})
     for alias, payload in clone_model_aliases().items():
         model_aliases.setdefault(alias, payload)
@@ -1258,6 +1362,7 @@ def effective_state(start: Path | None = None) -> tuple[dict[str, Any], Path | N
         merged = json.loads(json.dumps(state))
         merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
         merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
+        merged["policies"] = list(state.get("policies", [])) + list(project_config.get("policies", []))
         if "workspace_targets" in project_config:
             merged["workspace_targets"] = project_config["workspace_targets"]
         if project_config.get("active"):
@@ -1877,6 +1982,7 @@ def cmd_use(args: argparse.Namespace) -> None:
         if name not in profiles:
             available = ", ".join(sorted(profiles))
             raise SystemExit(f"Unknown profile {args.name!r}. Available: {available}")
+        assert_profile_policy_allowed(effective, name, profiles[name])
         root = Path.cwd().resolve()
         config, config_path = load_project_config(root)
         if config_path:
@@ -1898,6 +2004,7 @@ def cmd_use(args: argparse.Namespace) -> None:
     if name not in profiles:
         available = ", ".join(sorted(profiles))
         raise SystemExit(f"Unknown global profile {args.name!r}. Available: {available}")
+    assert_profile_policy_allowed(state, name, profiles[name])
     state["active"] = name
     save_state(state)
     profile = profiles[name]
@@ -1908,8 +2015,10 @@ def cmd_use(args: argparse.Namespace) -> None:
 
 def cmd_current(args: argparse.Namespace) -> None:
     state, config_path = effective_state()
+    active = resolve_profile_name(state, str(state.get("active")))
     profile = active_profile(state)
     if args.shell:
+        assert_profile_policy_allowed(state, active, profile)
         print(emit_env(profile, args.shell))
         return
     print(json.dumps({"active": state["active"], "project_config": str(config_path) if config_path else None, "profile": profile}, indent=2, ensure_ascii=False))
@@ -1952,12 +2061,26 @@ def about_payload() -> dict[str, Any]:
         "home": str(APP_DIR),
         "state": str(STATE_PATH),
         "script": str(SCRIPT_PATH),
-        "entrypoints": ["ayatori", "ayatori-nexus", "ai-cli-switcher", "ai-about", "ai-lite", "ai-menu", "ai-report"],
+        "entrypoints": [
+            "ayatori",
+            "ayatori-nexus",
+            "ai-cli-switcher",
+            "ai-about",
+            "ai-lite",
+            "ai-menu",
+            "ai-report",
+            "ai-policy",
+            "ai-template",
+            "ai-config",
+        ],
         "common_commands": [
             "ayatori about",
             "ayatori status",
             "ai-menu",
             "ai-report",
+            "ai-policy list",
+            "ai-template list",
+            "ai-config explain",
             "ai-lite",
             "ayatori workspace up",
             "ayatori agent prompt",
@@ -2137,6 +2260,7 @@ def cmd_select(args: argparse.Namespace) -> None:
     if not choice.isdigit() or not (1 <= int(choice) <= len(profiles)):
         raise SystemExit("Invalid selection.")
     selected = profiles[int(choice) - 1][0]
+    assert_profile_policy_allowed(state, selected, state.get("profiles", {}).get(selected, {}))
     if args.project:
         root = config_path.parent if config_path else Path.cwd().resolve()
         config, _ = load_project_config(root)
@@ -2257,12 +2381,268 @@ def cmd_alias(args: argparse.Namespace) -> None:
         print(f"Alias removed: {args.name}")
 
 
+def template_name_valid(name: str) -> bool:
+    return bool(re.match(r"^[A-Za-z0-9_.-]+$", name))
+
+
+def template_path(name: str) -> Path:
+    if not template_name_valid(name):
+        raise SystemExit(f"Invalid template name {name!r}. Use letters, numbers, dot, dash, or underscore.")
+    return TEMPLATES_DIR / f"{name}.json"
+
+
+def load_template(name: str) -> dict[str, Any]:
+    path = template_path(name)
+    if not path.exists():
+        raise SystemExit(f"Unknown template {name!r}.")
+    payload = read_json(path)
+    payload.setdefault("name", name)
+    payload.setdefault("prompt", "")
+    payload.setdefault("system", "")
+    payload.setdefault("defaults", {})
+    return payload
+
+
+def render_template_text(text: str, params: dict[str, str]) -> str:
+    template = string.Template(text)
+    names = {match.group("named") or match.group("braced") for match in template.pattern.finditer(text)}
+    missing = sorted(name for name in names if name and name not in params)
+    if missing:
+        raise SystemExit(f"Missing template variables: {', '.join(missing)}")
+    try:
+        return template.substitute(**params)
+    except ValueError as exc:
+        raise SystemExit(f"Invalid template syntax: {exc}") from exc
+
+
+def cmd_template(args: argparse.Namespace) -> None:
+    if args.action == "path":
+        print(template_path(args.name) if args.name else TEMPLATES_DIR)
+        return
+    if args.action == "list":
+        if not TEMPLATES_DIR.exists():
+            if args.json:
+                print(json.dumps({"templates": []}, indent=2, ensure_ascii=False))
+                return
+            print("No templates configured.")
+            return
+        items = []
+        for path in sorted(TEMPLATES_DIR.glob("*.json")):
+            try:
+                item = read_json(path)
+            except SystemExit:
+                continue
+            items.append({"name": path.stem, "description": item.get("description", ""), "path": str(path)})
+        if args.json:
+            print(json.dumps({"templates": items}, indent=2, ensure_ascii=False))
+            return
+        if not items:
+            print("No templates configured.")
+            return
+        for item in items:
+            suffix = f": {item['description']}" if item.get("description") else ""
+            print(f"{item['name']}{suffix}")
+        return
+    if args.action == "show":
+        if not args.name:
+            raise SystemExit("template show requires NAME")
+        payload = load_template(args.name)
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print(f"{payload.get('name')}: {payload.get('description', '')}".rstrip())
+        if payload.get("system"):
+            print("system:")
+            print(str(payload["system"]).rstrip())
+        if payload.get("prompt"):
+            print("prompt:")
+            print(str(payload["prompt"]).rstrip())
+        defaults = payload.get("defaults", {})
+        if defaults:
+            print("defaults:")
+            for key, value in defaults.items():
+                print(f"  {key}={value}")
+        return
+    if args.action == "set":
+        if not args.name:
+            raise SystemExit("template set requires NAME")
+        if not args.prompt and not args.system:
+            raise SystemExit("template set requires --prompt, --system, or both.")
+        defaults = dict(parse_env_pair(item) for item in args.default)
+        payload = {
+            "name": args.name,
+            "description": args.description or "",
+            "prompt": args.prompt or "",
+            "system": args.system or "",
+            "defaults": defaults,
+        }
+        TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+        template_path(args.name).write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"Template saved: {args.name}")
+        return
+    if args.action == "use":
+        if not args.name:
+            raise SystemExit("template use requires NAME")
+        payload = load_template(args.name)
+        params = {str(k): str(v) for k, v in payload.get("defaults", {}).items()}
+        params.update(dict(parse_env_pair(item) for item in args.param))
+        input_text = args.input
+        if input_text is None and not sys.stdin.isatty():
+            input_text = sys.stdin.read()
+        params["input"] = input_text or ""
+        rendered_system = render_template_text(str(payload.get("system") or ""), params)
+        rendered_prompt = render_template_text(str(payload.get("prompt") or "$input"), params)
+        if args.json:
+            print(json.dumps({"name": args.name, "system": rendered_system, "prompt": rendered_prompt}, indent=2, ensure_ascii=False))
+            return
+        if rendered_system:
+            print("System:")
+            print(rendered_system.rstrip())
+            print()
+        print(rendered_prompt.rstrip())
+        return
+    if args.action == "remove":
+        if not args.name:
+            raise SystemExit("template remove requires NAME")
+        path = template_path(args.name)
+        if path.exists():
+            path.unlink()
+            print(f"Template removed: {args.name}")
+        else:
+            print(f"Template not found: {args.name}")
+        return
+    raise SystemExit(f"Unknown template action {args.action!r}")
+
+
+def policy_action(kind: str) -> str:
+    if kind != "provider":
+        raise SystemExit("Only provider policies are supported currently.")
+    return "provider.use"
+
+
+def policy_statement(effect: str, kind: str, resource: str) -> dict[str, str]:
+    resource = resource.strip().lower()
+    if not resource:
+        raise SystemExit("Policy resource cannot be empty.")
+    return {"effect": effect, "action": policy_action(kind), "resource": resource}
+
+
+def evaluate_policy(statements: list[dict[str, Any]], action: str, resource: str, fallback: str = "allow") -> str:
+    decision = fallback
+    resource = resource.strip().lower()
+    for statement in statements:
+        effect = str(statement.get("effect", "")).lower()
+        if effect not in {"allow", "deny"}:
+            continue
+        pattern_action = str(statement.get("action", ""))
+        pattern_resource = str(statement.get("resource", "")).lower()
+        if fnmatch.fnmatchcase(action, pattern_action) and fnmatch.fnmatchcase(resource, pattern_resource):
+            decision = effect
+    return decision
+
+
+def policy_resource_for_profile(profile: dict[str, Any]) -> str:
+    return str(profile.get("api_provider") or profile.get("provider") or "").strip().lower()
+
+
+def assert_profile_policy_allowed(state: dict[str, Any], profile_name: str, profile: dict[str, Any]) -> None:
+    resource = policy_resource_for_profile(profile)
+    if not resource:
+        return
+    decision = evaluate_policy(list(state.get("policies", [])), "provider.use", resource)
+    if decision == "deny":
+        raise SystemExit(f"Policy denied provider {resource!r} for profile {profile_name!r}. Run ai-policy list or add an allow rule.")
+
+
+def policy_target_config(args: argparse.Namespace, state: dict[str, Any]) -> tuple[dict[str, Any], Any, str]:
+    if getattr(args, "project", False):
+        config, config_path = load_project_config()
+        root = config_path.parent if config_path else Path.cwd().resolve()
+        if not config:
+            config = {"active": state.get("active", "codex"), "profiles": {}, "aliases": {}, "policies": []}
+        return config, lambda: save_project_config(config, root), f"project:{root / PROJECT_CONFIG_NAME}"
+    return state, lambda: save_state(state), f"global:{STATE_PATH}"
+
+
+def cmd_policy(args: argparse.Namespace) -> None:
+    if args.action == "path":
+        print(STATE_PATH if not args.project else (find_project_root() or Path.cwd().resolve()) / PROJECT_CONFIG_NAME)
+        return
+    kind = args.kind
+    resource = args.resource
+    if args.action in {"allow", "deny", "check"} and resource is None and kind != "provider":
+        resource = kind
+        kind = "provider"
+    if args.action == "check":
+        if not resource:
+            raise SystemExit("policy check requires a resource, e.g. ai-policy check provider openai")
+        action = policy_action(kind)
+        effective, _ = readonly_effective_state()
+        decision = evaluate_policy(list(effective.get("policies", [])), action, resource)
+        payload = {"action": action, "resource": resource.strip().lower(), "decision": decision, "policies": effective.get("policies", [])}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print(f"{action} {payload['resource']}: {decision}")
+        return
+    if args.action == "list":
+        if args.project:
+            config, config_path = load_project_config()
+            root = config_path.parent if config_path else Path.cwd().resolve()
+            policies = list(config.get("policies", []))
+            scope = f"project:{root / PROJECT_CONFIG_NAME}"
+        else:
+            policies = list(readonly_global_state().get("policies", []))
+            scope = f"global:{STATE_PATH}"
+        payload = {"scope": scope, "policies": policies}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not policies:
+            print(f"No policies configured in {scope}.")
+            return
+        for index, item in enumerate(policies, start=1):
+            print(f"{index}. {item.get('effect')} {item.get('action')} {item.get('resource')}")
+        return
+
+    state = normalize_state(ensure_state())
+    target, save, scope = policy_target_config(args, state)
+    policies = target.setdefault("policies", [])
+    if args.action in {"allow", "deny"}:
+        if not resource:
+            raise SystemExit(f"policy {args.action} requires a resource, e.g. ai-policy {args.action} provider openai")
+        item = policy_statement(args.action, kind, resource)
+        policies.append(item)
+        save()
+        print(f"Policy saved in {scope}: {item['effect']} {item['action']} {item['resource']}")
+        return
+    if args.action == "remove":
+        index_value = args.index
+        if not index_value and args.kind != "provider" and not args.resource:
+            index_value = args.kind
+        if not index_value:
+            raise SystemExit("policy remove requires --index N")
+        try:
+            index = int(index_value)
+        except ValueError as exc:
+            raise SystemExit(f"Policy index must be a number, got {index_value!r}") from exc
+        if not 1 <= index <= len(policies):
+            raise SystemExit(f"Policy index out of range: {index}")
+        removed = policies.pop(index - 1)
+        save()
+        print(f"Policy removed from {scope}: {removed.get('effect')} {removed.get('action')} {removed.get('resource')}")
+        return
+    raise SystemExit(f"Unknown policy action {args.action!r}")
+
+
 def cmd_paths(args: argparse.Namespace) -> None:
     project_root = find_project_root()
     ensure_memory_files(project_root)
     paths = {
         "home": str(APP_DIR),
         "state": str(STATE_PATH),
+        "templates": str(TEMPLATES_DIR),
+        "providers": str(PROVIDERS_DIR),
         "global_memory": str(GLOBAL_MEMORY_PATH),
         "session_memory": str(SESSION_MEMORY_PATH),
         "context_memory": str(CONTEXT_MEMORY_PATH),
@@ -2275,6 +2655,85 @@ def cmd_paths(args: argparse.Namespace) -> None:
     for key, value in paths.items():
         if value:
             print(f"{key}: {value}")
+
+
+def readonly_global_state() -> dict[str, Any]:
+    if STATE_PATH.exists():
+        return normalize_state(read_json(STATE_PATH))
+    return normalize_state({"active": "codex", "profiles": clone_default_profiles(), "aliases": {}, "model_aliases": clone_model_aliases(), "policies": []})
+
+
+def value_source(name: str, field: str, global_state: dict[str, Any], project_config: dict[str, Any], global_state_exists: bool) -> str:
+    if name in project_config.get("profiles", {}) and field in project_config.get("profiles", {}).get(name, {}):
+        return "project"
+    if global_state_exists and name in global_state.get("profiles", {}) and field in global_state.get("profiles", {}).get(name, {}):
+        return "global"
+    if name in DEFAULT_PROFILES and field in DEFAULT_PROFILES[name]:
+        return "default"
+    return "derived"
+
+
+def config_explain_payload(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.dir).expanduser().resolve() if getattr(args, "dir", None) else Path.cwd().resolve()
+    state_exists = STATE_PATH.exists()
+    global_state = readonly_global_state()
+    project_config, project_path = load_project_config(root)
+    effective, effective_project_path = readonly_effective_state(root)
+    profile_name = resolve_profile_name(effective, args.profile or str(effective.get("active")))
+    profile = effective.get("profiles", {}).get(profile_name, {})
+    fields = {}
+    for field in ["provider", "command", "model", "api_provider", "api_kind", "memory_path", "env", "pages"]:
+        if field in profile:
+            fields[field] = {"value": profile.get(field), "source": value_source(profile_name, field, global_state, project_config, state_exists)}
+    env_overrides = {}
+    for key in ["AI_CLI_SWITCHER_HOME", "AI_CLI_SWITCHER_PYTHON"]:
+        if os.environ.get(key):
+            env_overrides[key] = os.environ[key]
+    return {
+        "home": str(APP_DIR),
+        "state": {"path": str(STATE_PATH), "exists": state_exists},
+        "project": {"path": str(project_path) if project_path else None, "exists": bool(project_path)},
+        "templates": str(TEMPLATES_DIR),
+        "providers": str(PROVIDERS_DIR),
+        "active": {
+            "value": effective.get("active"),
+            "source": "project" if project_config.get("active") else ("global" if state_exists else "default"),
+        },
+        "profile": {"name": profile_name, "fields": fields},
+        "counts": {
+            "global_profiles": len(global_state.get("profiles", {})),
+            "project_profiles": len(project_config.get("profiles", {})),
+            "effective_profiles": len(effective.get("profiles", {})),
+            "global_policies": len(global_state.get("policies", [])),
+            "project_policies": len(project_config.get("policies", [])),
+        },
+        "env_overrides": env_overrides,
+        "effective_project_config": str(effective_project_path) if effective_project_path else None,
+    }
+
+
+def cmd_config(args: argparse.Namespace) -> None:
+    if args.action != "explain":
+        raise SystemExit(f"Unknown config action {args.action!r}")
+    payload = config_explain_payload(args)
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    print("Ayatori config explanation")
+    print(f"Home: {payload['home']}")
+    print(f"State: {payload['state']['path']} ({'exists' if payload['state']['exists'] else 'missing'})")
+    print(f"Project: {payload['project']['path'] or 'none'}")
+    print(f"Active: {payload['active']['value']} [{payload['active']['source']}]")
+    print(f"Profile: {payload['profile']['name']}")
+    for field, item in payload["profile"]["fields"].items():
+        value = item["value"]
+        if isinstance(value, dict):
+            value = json.dumps(value, ensure_ascii=False)
+        print(f"  {field}: {value} [{item['source']}]")
+    if payload["env_overrides"]:
+        print("Env overrides:")
+        for key, value in payload["env_overrides"].items():
+            print(f"  {key}={value}")
 
 
 def cmd_export(args: argparse.Namespace) -> None:
@@ -2530,15 +2989,36 @@ def cmd_api_test(args: argparse.Namespace) -> None:
 
 def cmd_api(args: argparse.Namespace) -> None:
     if args.action == "list":
+        presets = all_api_presets()
         if args.json:
-            print(json.dumps(API_PRESETS, indent=2, ensure_ascii=False))
+            print(json.dumps(presets, indent=2, ensure_ascii=False))
             return
-        for name in sorted(API_PRESETS):
-            preset = API_PRESETS[name]
-            print(f"{name}: {preset.get('label')} [{preset.get('kind')}] default={preset.get('model')}")
-        if API_PRESET_ALIASES:
-            aliases = ", ".join(f"{alias}->{target}" for alias, target in sorted(API_PRESET_ALIASES.items()))
+        for name in sorted(presets):
+            preset = presets[name]
+            source = " external" if preset.get("source") else ""
+            print(f"{name}: {preset.get('label')} [{preset.get('kind')}] default={preset.get('model')}{source}")
+        aliases = all_api_preset_aliases()
+        if aliases:
+            aliases = ", ".join(f"{alias}->{target}" for alias, target in sorted(aliases.items()))
             print(f"Aliases: {aliases}")
+        return
+
+    if args.action == "providers":
+        external, aliases = external_provider_payloads()
+        payload = {"directory": str(PROVIDERS_DIR), "exists": PROVIDERS_DIR.exists(), "external_presets": external, "external_aliases": aliases}
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        print(f"providers.d: {PROVIDERS_DIR}")
+        if not external:
+            print("No external provider presets found.")
+            return
+        for name, preset in sorted(external.items()):
+            print(f"{name}: {preset.get('label')} [{preset.get('kind')}] source={preset.get('source')}")
+        if aliases:
+            print("Aliases:")
+            for alias, target in sorted(aliases.items()):
+                print(f"  {alias} -> {target}")
         return
 
     if args.action == "show":
@@ -2620,9 +3100,15 @@ def cmd_api(args: argparse.Namespace) -> None:
         aliases[args.alias] = args.profile
     if args.use:
         if args.project:
+            effective_preview = json.loads(json.dumps(state))
+            effective_preview.setdefault("profiles", {}).update(config.get("profiles", {}))
+            effective_preview.setdefault("aliases", {}).update(config.get("aliases", {}))
+            effective_preview["policies"] = list(state.get("policies", [])) + list(config.get("policies", []))
+            assert_profile_policy_allowed(normalize_state(effective_preview), args.profile, profile)
             config["active"] = args.profile
             ensure_memory_files(root)
         else:
+            assert_profile_policy_allowed(state, args.profile, profile)
             state["active"] = args.profile
     if args.project:
         ensure_memory_files(root)
@@ -3625,7 +4111,7 @@ def cmd_model(args: argparse.Namespace) -> None:
         if profile_name not in profiles:
             raise SystemExit(f"Unknown profile {args.profile!r}. Use profile or api apply first.")
         profile = profiles[profile_name]
-        if provider and provider in API_PRESETS:
+        if provider and provider in all_api_presets():
             apply_api_preset_to_profile(profile, provider, model)
         else:
             profile["model"] = model
@@ -3719,7 +4205,9 @@ def cmd_open(args: argparse.Namespace) -> None:
 
 def cmd_run(args: argparse.Namespace) -> None:
     state, _ = effective_state()
+    active = resolve_profile_name(state, str(state.get("active")))
     profile = active_profile(state)
+    assert_profile_policy_allowed(state, active, profile)
     command = [str(profile.get("command"))] + args.args
     env = profile_process_env(profile, project_root_for_env())
     raise SystemExit(subprocess.call(command, env=env))
@@ -3830,17 +4318,21 @@ def session_record_for_target(state: dict[str, Any], target: str) -> tuple[str, 
 def resolve_profile_for_session(target: str, start: Path | None = None) -> tuple[dict[str, Any], str, dict[str, Any], Path | None]:
     state = normalize_state(ensure_state())
     try:
-        return resolve_named_profile(target, start)
+        resolved = resolve_named_profile(target, start)
     except SystemExit as profile_error:
         strategy_profile = ensure_strategy_profile(state, target)
         if strategy_profile:
             save_state(state)
-            return resolve_named_profile(strategy_profile, start)
-        if target in RECIPE_CATALOG or target in RECIPE_ALIASES:
+            resolved = resolve_named_profile(strategy_profile, start)
+        elif target in RECIPE_CATALOG or target in RECIPE_ALIASES:
             profile_name, _ = install_recipe_into_state(state, target, False)
             save_state(state)
-            return resolve_named_profile(profile_name, start)
-        raise profile_error
+            resolved = resolve_named_profile(profile_name, start)
+        else:
+            raise profile_error
+    resolved_state, profile_name, profile, config_path = resolved
+    assert_profile_policy_allowed(resolved_state, profile_name, profile)
+    return resolved_state, profile_name, profile, config_path
 
 
 def cmd_session(args: argparse.Namespace) -> None:
@@ -4617,6 +5109,18 @@ function ai-adapter {{
   Invoke-AiCliSwitcher adapter @args
 }}
 
+function ai-policy {{
+  Invoke-AiCliSwitcher policy @args
+}}
+
+function ai-template {{
+  Invoke-AiCliSwitcher template @args
+}}
+
+function ai-config {{
+  Invoke-AiCliSwitcher config @args
+}}
+
 function ai-lite {{
   Invoke-AiCliSwitcher lite @args
 }}
@@ -4797,6 +5301,18 @@ if errorlevel 1 exit /b %errorlevel%
 {bootstrap}
 {py_cmd} adapter %*
 """,
+        "ai-policy.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} policy %*
+""",
+        "ai-template.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} template %*
+""",
+        "ai-config.cmd": f"""@echo off
+{bootstrap}
+{py_cmd} config %*
+""",
         "ai-lite.cmd": f"""@echo off
 {bootstrap}
 {py_cmd} lite %*
@@ -4956,6 +5472,9 @@ ai-model() {{ _ai_cli_switcher model "$@"; }}
 ai-strategy() {{ _ai_cli_switcher strategy "$@"; }}
 ai-recipe() {{ _ai_cli_switcher recipe "$@"; }}
 ai-adapter() {{ _ai_cli_switcher adapter "$@"; }}
+ai-policy() {{ _ai_cli_switcher policy "$@"; }}
+ai-template() {{ _ai_cli_switcher template "$@"; }}
+ai-config() {{ _ai_cli_switcher config "$@"; }}
 ai-lite() {{ _ai_cli_switcher lite "$@"; }}
 ai-menu() {{ _ai_cli_switcher menu "$@"; }}
 ai-report() {{ _ai_cli_switcher report "$@"; }}
@@ -5032,6 +5551,9 @@ function ai-model; _ai_cli_switcher model $argv; end
 function ai-strategy; _ai_cli_switcher strategy $argv; end
 function ai-recipe; _ai_cli_switcher recipe $argv; end
 function ai-adapter; _ai_cli_switcher adapter $argv; end
+function ai-policy; _ai_cli_switcher policy $argv; end
+function ai-template; _ai_cli_switcher template $argv; end
+function ai-config; _ai_cli_switcher config $argv; end
 function ai-lite; _ai_cli_switcher lite $argv; end
 function ai-menu; _ai_cli_switcher menu $argv; end
 function ai-report; _ai_cli_switcher report $argv; end
@@ -5308,7 +5830,9 @@ def cmd_recipe(args: argparse.Namespace) -> None:
 
     active_target = args.active or (installed_profiles[-1] if args.use else "")
     if active_target:
-        state["active"] = resolve_active_target(state, active_target)
+        resolved_active = resolve_active_target(state, active_target)
+        assert_profile_policy_allowed(state, resolved_active, state.get("profiles", {}).get(resolved_active, {}))
+        state["active"] = resolved_active
         events.append({"recipe": "active", "status": "saved", "name": "active", "detail": str(state["active"])})
 
     if not args.dry_run:
@@ -5780,6 +6304,13 @@ def profile_readiness(state: dict[str, Any], name: str, profile: dict[str, Any])
     else:
         add_check(checks, "warn", "api preset", "not configured; profile relies on native CLI defaults")
 
+    policy_resource = policy_resource_for_profile(profile)
+    if policy_resource:
+        policy_decision = evaluate_policy(list(state.get("policies", [])), "provider.use", policy_resource)
+        add_check(checks, "ok" if policy_decision == "allow" else "fail", "policy", f"provider.use {policy_resource}: {policy_decision}")
+    else:
+        policy_decision = "allow"
+
     base_key, base_url, base_ref = profile_base_url(profile)
     parsed = urllib.parse.urlparse(base_url or "")
     if base_key and base_url and parsed.scheme in {"http", "https"} and parsed.netloc:
@@ -5843,6 +6374,7 @@ def profile_readiness(state: dict[str, Any], name: str, profile: dict[str, Any])
         "capability_provider": capability_provider,
         "api_provider": api_provider or None,
         "api_kind": api_kind or None,
+        "policy": policy_decision,
         "memory": memory_value,
         "env_refs": env_refs,
         "capabilities": capabilities,
@@ -5860,6 +6392,7 @@ def readonly_effective_state(start: Path | None = None) -> tuple[dict[str, Any],
         merged = json.loads(json.dumps(state))
         merged.setdefault("profiles", {}).update(project_config.get("profiles", {}))
         merged.setdefault("aliases", {}).update(project_config.get("aliases", {}))
+        merged["policies"] = list(state.get("policies", [])) + list(project_config.get("policies", []))
         if "workspace_targets" in project_config:
             merged["workspace_targets"] = project_config["workspace_targets"]
         if project_config.get("active"):
@@ -6034,6 +6567,34 @@ def build_parser() -> argparse.ArgumentParser:
     alias_parser.add_argument("target", nargs="?")
     alias_parser.set_defaults(func=cmd_alias)
 
+    policy_parser = sub.add_parser("policy", help="List, add, remove, or check provider allow/deny policies.")
+    policy_parser.add_argument("action", choices=["list", "allow", "deny", "check", "remove", "path"])
+    policy_parser.add_argument("kind", nargs="?", default="provider")
+    policy_parser.add_argument("resource", nargs="?")
+    policy_parser.add_argument("--index", help="1-based policy index for remove.")
+    policy_parser.add_argument("--project", action="store_true", help="Read/write policies in the current project config.")
+    policy_parser.add_argument("--json", action="store_true")
+    policy_parser.set_defaults(func=cmd_policy)
+
+    template_parser = sub.add_parser("template", help="Manage reusable prompt templates.")
+    template_parser.add_argument("action", choices=["list", "show", "set", "use", "remove", "path"])
+    template_parser.add_argument("name", nargs="?")
+    template_parser.add_argument("--description")
+    template_parser.add_argument("--prompt")
+    template_parser.add_argument("--system")
+    template_parser.add_argument("--default", action="append", default=[], metavar="KEY=VALUE")
+    template_parser.add_argument("--input")
+    template_parser.add_argument("--param", action="append", default=[], metavar="KEY=VALUE")
+    template_parser.add_argument("--json", action="store_true")
+    template_parser.set_defaults(func=cmd_template)
+
+    config_parser = sub.add_parser("config", help="Explain effective switcher config sources.")
+    config_parser.add_argument("action", choices=["explain"])
+    config_parser.add_argument("--profile")
+    config_parser.add_argument("--dir")
+    config_parser.add_argument("--json", action="store_true")
+    config_parser.set_defaults(func=cmd_config)
+
     paths_parser = sub.add_parser("paths", help="Show switcher config and memory paths.")
     paths_parser.add_argument("--json", action="store_true")
     paths_parser.set_defaults(func=cmd_paths)
@@ -6064,6 +6625,9 @@ def build_parser() -> argparse.ArgumentParser:
     api_list_parser = api_sub.add_parser("list", help="List built-in API presets.")
     api_list_parser.add_argument("--json", action="store_true")
     api_list_parser.set_defaults(func=cmd_api)
+    api_providers_parser = api_sub.add_parser("providers", help="Show providers.d external preset directory and loaded presets.")
+    api_providers_parser.add_argument("--json", action="store_true")
+    api_providers_parser.set_defaults(func=cmd_api)
     api_show_parser = api_sub.add_parser("show", help="Show one API preset.")
     api_show_parser.add_argument("name")
     api_show_parser.add_argument("--json", action="store_true")
