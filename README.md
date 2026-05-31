@@ -91,6 +91,12 @@ Dry-run the installers before writing anything:
 sh install.sh --dry-run
 ```
 
+Run the Lite fixture tests from the repository root:
+
+```powershell
+python tests/test_lite_workflow.py
+```
+
 After setup, reload your shell profile if the installer asks you to. Then:
 
 ```powershell

@@ -17,6 +17,13 @@ REQUIRED_FILES = [
     "README.md",
     "CHANGELOG.md",
     "scripts/cli_model_switcher.py",
+    "tests/test_lite_workflow.py",
+    "tests/fixtures/empty/.gitkeep",
+    "tests/fixtures/github/.github/.gitkeep",
+    "tests/fixtures/cursor/.cursor/rules/existing.mdc",
+    "tests/fixtures/windsurf/.windsurf/rules/existing.md",
+    "tests/fixtures/claude/CLAUDE.md",
+    "tests/fixtures/mixed/AGENTS.md",
     "docs/README.de.md",
     "docs/README.fr.md",
     "docs/README.it.md",
@@ -88,6 +95,7 @@ def main() -> int:
         "Shortest Path",
         "Release Checklist",
         ".\\install.ps1 -Lite",
+        "python tests/test_lite_workflow.py",
         "ai-workspace",
         "ai-lite",
         "ai-agent",
@@ -161,6 +169,11 @@ def main() -> int:
     for command in ["about", "ayatori", "lite", "ai-lite", "all_common", "--all-common", "--undo", "--prompt", "--fix", "--detected", "targets", "detect", "recommend", "platforms", "support", "native", "experimental", "amp", "devin", "junie", "zed", "kilo", "gitlab-duo", "firebase-studio", "android-studio-gemini", "openhands", "warp", "trae", "openclaw", "TOOLS.md", "continue", "goose", "kiro", "install-unix", "install-bin", "workspace", "agent", "secret"]:
         if command not in script:
             fail(f"cli_model_switcher.py is missing expected command text: {command}")
+
+    tests = (root / "tests" / "test_lite_workflow.py").read_text(encoding="utf-8")
+    for expected in ["agent", "recommend", "lite", "--all-common", "--undo", "fixtures"]:
+        if expected not in tests:
+            fail(f"test_lite_workflow.py is missing expected coverage text: {expected}")
 
     print("Skill repository is valid.")
     return 0

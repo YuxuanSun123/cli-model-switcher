@@ -17,6 +17,7 @@ Use this checklist when preparing a tagged GitHub release.
    python scripts/cli_model_switcher.py lite --dry-run --json
    python scripts/cli_model_switcher.py lite --all-common --dry-run --json
    python scripts/cli_model_switcher.py setup --lite --dry-run --no-install
+   python tests/test_lite_workflow.py
    python scripts/cli_model_switcher.py secret audit --scope all --fail
    ```
 
