@@ -53,6 +53,9 @@ jobs:
         run: |
           python -m py_compile scripts/cli_model_switcher.py scripts/validate_skill.py
           python scripts/validate_skill.py .
+          python scripts/cli_model_switcher.py lite --dry-run --json
+          python scripts/cli_model_switcher.py lite --all-common --dry-run --json
+          python scripts/cli_model_switcher.py setup --lite --dry-run --no-install
           python scripts/cli_model_switcher.py secret audit --scope all --fail
 
       - name: Build source archives

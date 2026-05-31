@@ -84,6 +84,8 @@ def main() -> int:
         "install.sh",
         "install.ps1",
         "install.sh --lite",
+        "Shortest Path",
+        ".\\install.ps1 -Lite",
         "ai-workspace",
         "ai-lite",
         "ai-agent",

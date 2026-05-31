@@ -10,6 +10,22 @@
 
 Ayatori Nexus is the codename for CLI Model Switcher: a local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
 
+## Shortest Path
+
+Use this path if you only want the simple agent bridge:
+
+```bash
+sh install.sh --lite
+ai-lite
+```
+
+```powershell
+.\install.ps1 -Lite
+ai-lite
+```
+
+Use `ai-lite --dry-run` to preview changes, `ai-lite --prompt` for an already-running agent, and `ai-lite --undo` to remove managed bridge blocks.
+
 ## What It Does
 
 - Switch active CLI AI profiles with `ai-use`.

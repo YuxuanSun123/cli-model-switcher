@@ -42,6 +42,13 @@ jobs:
       - name: Skill metadata validation
         run: python scripts/validate_skill.py .
 
+      - name: Lite workflow smoke tests
+        run: |
+          python scripts/cli_model_switcher.py lite --dry-run --json
+          python scripts/cli_model_switcher.py lite --all-common --dry-run --json
+          python scripts/cli_model_switcher.py lite --undo --dry-run --json
+          python scripts/cli_model_switcher.py setup --lite --dry-run --no-install
+
       - name: Secret audit
         run: python scripts/cli_model_switcher.py secret audit --scope all --fail
 
@@ -57,6 +64,7 @@ jobs:
           python scripts/cli_model_switcher.py install-unix --shell fish --bin-dir "$RUNNER_TEMP/ai-cli-bin" --dry-run
           python scripts/cli_model_switcher.py install-bin --bin-dir "$RUNNER_TEMP/ai-cli-bin" --dry-run
           bash ./install.sh --dry-run --dir "$RUNNER_TEMP/cli-model-switcher" --shell bash
+          bash ./install.sh --dry-run --lite --no-install --dir "$RUNNER_TEMP/cli-model-switcher-lite" --shell bash
 
       - name: Windows helper dry runs
         if: runner.os == 'Windows'
@@ -65,3 +73,4 @@ jobs:
           python scripts/cli_model_switcher.py install-powershell --profile "$env:RUNNER_TEMP\ai-cli-profile.ps1" --dry-run
           python scripts/cli_model_switcher.py install-cmd --dir "$env:RUNNER_TEMP\ai-cli-cmd" --dry-run
           ./install.ps1 -DryRun -InstallDir "$env:RUNNER_TEMP\cli-model-switcher" -Shell powershell
+          ./install.ps1 -DryRun -Lite -NoInstall -InstallDir "$env:RUNNER_TEMP\cli-model-switcher-lite" -Shell powershell
