@@ -12,6 +12,28 @@ Ayatori Nexus is the codename for CLI Model Switcher: a local profile switcher f
 
 The current design was compared against [LLM](https://github.com/simonw/llm), [AIChat](https://github.com/sigoden/aichat), and [OpenCode](https://github.com/anomalyco/opencode). See [Reference Analysis](docs/REFERENCE_ANALYSIS.md).
 
+## Standalone Skill Module
+
+This repository is already a Codex skill because the repository root contains `SKILL.md`. For cleaner reuse, the standalone skill-only module is also available at:
+
+```text
+skill/cli-model-switcher/
+```
+
+That module contains only the files Codex needs at runtime or setup time: `SKILL.md`, `agents/openai.yaml`, installers, the CLI helper script, and focused references. It intentionally excludes repository-only files such as README pages, changelog, tests, and CI.
+
+Refresh or verify the separated module after editing the root skill or helper:
+
+```powershell
+py -3.12 scripts\sync_skill_module.py
+py -3.12 scripts\sync_skill_module.py --check
+```
+
+```bash
+python3 scripts/sync_skill_module.py
+python3 scripts/sync_skill_module.py --check
+```
+
 ## Shortest Path
 
 Use this path if you only want the simple agent bridge:
@@ -609,18 +631,21 @@ Merge policies:
 ## Repository Layout
 
 ```text
-SKILL.md                         Codex skill instructions
-scripts/cli_model_switcher.py    Main CLI implementation
-docs/README.*.md                 Localized README pages
-references/shell-integration.md  PowerShell, cmd.exe, Bash, Zsh, fish, Nushell notes
-references/linux-macos.md        Linux, macOS, WSL, and Git Bash notes
-agents/openai.yaml               Skill UI metadata
+SKILL.md                                  Live root skill instructions
+skill/cli-model-switcher/                Standalone skill-only module
+scripts/cli_model_switcher.py            Main CLI implementation
+scripts/sync_skill_module.py             Sync root skill files into the standalone module
+docs/README.*.md                         Localized README pages
+references/shell-integration.md          PowerShell, cmd.exe, Bash, Zsh, fish, Nushell notes
+references/linux-macos.md                Linux, macOS, WSL, and Git Bash notes
+agents/openai.yaml                       Skill UI metadata
 ```
 
 ## Development Checks
 
 ```powershell
 py -3.12 -m py_compile scripts\cli_model_switcher.py
+py -3.12 scripts\sync_skill_module.py --check
 py -3.12 scripts\cli_model_switcher.py secret audit --scope all --fail
 py -3.12 "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" .
 ```

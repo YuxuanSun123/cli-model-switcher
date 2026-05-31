@@ -17,6 +17,7 @@ REQUIRED_FILES = [
     "README.md",
     "CHANGELOG.md",
     "scripts/cli_model_switcher.py",
+    "scripts/sync_skill_module.py",
     "tests/test_lite_workflow.py",
     "tests/fixtures/empty/.gitkeep",
     "tests/fixtures/github/.github/.gitkeep",
@@ -33,6 +34,13 @@ REQUIRED_FILES = [
     "docs/RELEASE_CHECKLIST.md",
     "references/linux-macos.md",
     "references/shell-integration.md",
+    "skill/cli-model-switcher/SKILL.md",
+    "skill/cli-model-switcher/install.ps1",
+    "skill/cli-model-switcher/install.sh",
+    "skill/cli-model-switcher/agents/openai.yaml",
+    "skill/cli-model-switcher/scripts/cli_model_switcher.py",
+    "skill/cli-model-switcher/references/linux-macos.md",
+    "skill/cli-model-switcher/references/shell-integration.md",
 ]
 
 LOCALIZED_READMES = [
@@ -80,12 +88,31 @@ def main() -> int:
             fail(f"required file is empty: {relative}")
 
     skill_text = (root / "SKILL.md").read_text(encoding="utf-8")
+    module_skill_text = (root / "skill" / "cli-model-switcher" / "SKILL.md").read_text(encoding="utf-8")
     frontmatter = parse_frontmatter(skill_text)
+    module_frontmatter = parse_frontmatter(module_skill_text)
     if frontmatter.get("name") != "cli-model-switcher":
         fail("SKILL.md frontmatter name must be cli-model-switcher")
+    if module_frontmatter.get("name") != "cli-model-switcher":
+        fail("standalone skill module SKILL.md frontmatter name must be cli-model-switcher")
     description = frontmatter.get("description", "")
     if "command-line AI coding agents" not in description:
         fail("SKILL.md description should explain the command-line AI agent scope")
+    if skill_text != module_skill_text:
+        fail("standalone skill module SKILL.md is out of sync; run scripts/sync_skill_module.py")
+    for relative in [
+        "install.ps1",
+        "install.sh",
+        "agents/openai.yaml",
+        "scripts/cli_model_switcher.py",
+        "references/linux-macos.md",
+        "references/shell-integration.md",
+    ]:
+        if (root / relative).read_bytes() != (root / "skill" / "cli-model-switcher" / relative).read_bytes():
+            fail(f"standalone skill module file is out of sync: {relative}")
+    for forbidden in ["README.md", "CHANGELOG.md", "tests", ".github"]:
+        if (root / "skill" / "cli-model-switcher" / forbidden).exists():
+            fail(f"standalone skill module should not include repository-only artifact: {forbidden}")
 
     readme = (root / "README.md").read_text(encoding="utf-8")
     for expected in [
@@ -117,6 +144,9 @@ def main() -> int:
         "providers.d",
         "ai-api providers",
         "Reference Analysis",
+        "Standalone Skill Module",
+        "skill/cli-model-switcher",
+        "sync_skill_module.py",
         "ai-agent",
         "install-bin",
         "Ayatori Nexus",

@@ -19,6 +19,7 @@ This project currently follows a lightweight release format while it is still a 
 - `gateway` / `ai-gateway` for local OpenAI-compatible gateway process metadata, env export, status, and logs.
 - `preset` / `ai-preset` for installing and exporting provider preset manifests.
 - `request` / `ai-request` for local NDJSON request/gateway telemetry summaries.
+- Standalone skill-only module under `skill/cli-model-switcher/`, plus `scripts/sync_skill_module.py` to keep it synchronized with the root skill files.
 - Reference analysis for LLM, AIChat, and OpenCode under `docs/REFERENCE_ANALYSIS.md`.
 
 ## [0.4.0] - 2026-05-31
