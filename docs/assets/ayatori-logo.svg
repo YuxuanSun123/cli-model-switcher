@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Ayatori Nexus logo</title>
+  <desc id="desc">An interlaced command-line mark for Ayatori Nexus.</desc>
+  <rect width="512" height="512" rx="104" fill="#15161a"/>
+  <path d="M146 176c0-38 31-69 69-69h82c38 0 69 31 69 69s-31 69-69 69h-82c-38 0-69-31-69-69Z" fill="none" stroke="#55d6be" stroke-width="34"/>
+  <path d="M146 336c0-38 31-69 69-69h82c38 0 69 31 69 69s-31 69-69 69h-82c-38 0-69-31-69-69Z" fill="none" stroke="#ffbd2e" stroke-width="34"/>
+  <path d="M203 158l106 196" fill="none" stroke="#f2664b" stroke-width="34" stroke-linecap="round"/>
+  <path d="M178 256h156" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <path d="M334 256l-50-45" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <path d="M334 256l-50 45" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+</svg>

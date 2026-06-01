@@ -21,6 +21,7 @@ This project currently follows a lightweight release format while it is still a 
 - `request` / `ai-request` for local NDJSON request/gateway telemetry summaries.
 - Standalone skill-only module under `skill/cli-model-switcher/`, plus `scripts/sync_skill_module.py` to keep it synchronized with the root skill files.
 - Reference analysis for LLM, AIChat, and OpenCode under `docs/REFERENCE_ANALYSIS.md`.
+- Static GitHub Pages demo site under `docs/`, with install commands, workflow overview, and competition-ready project positioning.
 
 ## [0.4.0] - 2026-05-31
 

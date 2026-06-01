@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Ayatori Nexus is a unified command-line hub for switching AI coding agents and sharing context across tools."
+    >
+    <meta property="og:image" content="assets/demo-preview.png">
+    <title>Ayatori Nexus | CLI AI Agent Switcher</title>
+    <link rel="icon" href="assets/ayatori-logo.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/ayatori-logo.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Ayatori Nexus home">
+        <img src="assets/ayatori-logo.svg" alt="" width="40" height="40">
+        <span>Ayatori Nexus</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#workflow">Workflow</a>
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/YuxuanSun123/cli-model-switcher">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">CLI Model Switcher & Shared Memory Hub</p>
+          <h1>Ayatori Nexus</h1>
+          <p class="lede">
+            A unified command-line hub for switching AI coding agents and sharing
+            context across tools.
+          </p>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="button primary" href="https://github.com/YuxuanSun123/cli-model-switcher">View Repo</a>
+            <a class="button secondary" href="#install">Quick Install</a>
+          </div>
+          <dl class="stats" aria-label="Project highlights">
+            <div>
+              <dt>Agents</dt>
+              <dd>Codex, Claude, OpenCode, Gemini, OpenClaw</dd>
+            </div>
+            <div>
+              <dt>Shells</dt>
+              <dd>PowerShell, cmd.exe, Bash, Zsh, fish, Nushell</dd>
+            </div>
+            <div>
+              <dt>Mode</dt>
+              <dd>Full hub or one-command Lite</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="terminal" aria-label="Ayatori Nexus terminal demo">
+          <div class="terminal-bar">
+            <span></span>
+            <span></span>
+            <span></span>
+            <strong>ayatori demo</strong>
+          </div>
+          <pre><code><span class="prompt">$</span> ayatori status
+active profile   opencode-openrouter
+memory layer     ~/.ai-cli-switcher/memory.md
+workspace        codex | claude | opencode
+
+<span class="prompt">$</span> ai-use claude-native
+switched profile to claude-native
+exported shared context to AI_CLI_MEMORY
+
+<span class="prompt">$</span> ai-workspace switch claude
+attached to Claude without closing Codex
+
+<span class="prompt">$</span> ai-report --strict
+ready: routes, presets, providers, memory</code></pre>
+        </div>
+      </section>
+
+      <section class="band" id="workflow">
+        <div class="section-heading">
+          <p class="eyebrow">Why it exists</p>
+          <h2>One terminal workflow for many AI coding agents.</h2>
+        </div>
+        <div class="workflow">
+          <article>
+            <span>1</span>
+            <h3>Install once</h3>
+            <p>Run the platform installer for Windows, macOS, Linux, or WSL.</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>Choose a profile</h3>
+            <p>Switch between native tools, OpenAI-compatible gateways, and local models.</p>
+          </article>
+          <article>
+            <span>3</span>
+            <h3>Keep shared memory</h3>
+            <p>Reuse one neutral context file across Codex, Claude Code, OpenCode, and more.</p>
+          </article>
+          <article>
+            <span>4</span>
+            <h3>Move between agents</h3>
+            <p>Use workspace adapters and bridge prompts to move without rebuilding context.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band split" id="features">
+        <div>
+          <p class="eyebrow">Feature set</p>
+          <h2>Built for real multi-agent coding sessions.</h2>
+          <p>
+            Ayatori Nexus focuses on the boring pieces that usually break a multi-agent
+            workflow: shell setup, model routing, provider presets, memory handoff,
+            session launchers, and platform-specific instructions.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <h3>Agent switching</h3>
+            <p><code>ai-use</code>, <code>ai-workspace</code>, and bridge commands for active sessions.</p>
+          </article>
+          <article>
+            <h3>Shared memory</h3>
+            <p>One neutral <code>AI_CLI_MEMORY</code> layer for cross-agent project context.</p>
+          </article>
+          <article>
+            <h3>API presets</h3>
+            <p>OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, LM Studio, and more.</p>
+          </article>
+          <article>
+            <h3>Skill packaging</h3>
+            <p>Standalone skill module for Codex and a portable layout for other agent platforms.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band install" id="install">
+        <div class="section-heading">
+          <p class="eyebrow">Try it</p>
+          <h2>Install from GitHub.</h2>
+        </div>
+        <div class="commands">
+          <article>
+            <div class="command-head">
+              <h3>Linux, macOS, WSL</h3>
+              <button type="button" data-copy="curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh">Copy</button>
+            </div>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh</code></pre>
+          </article>
+          <article>
+            <div class="command-head">
+              <h3>Windows PowerShell</h3>
+              <button type="button" data-copy="irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex">Copy</button>
+            </div>
+            <pre><code>irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex</code></pre>
+          </article>
+          <article>
+            <div class="command-head">
+              <h3>Lite mode</h3>
+              <button type="button" data-copy="ai-lite">Copy</button>
+            </div>
+            <pre><code>ai-lite</code></pre>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Ayatori Nexus</span>
+      <a href="README.zh-CN.md">Simplified Chinese</a>
+      <a href="README.zh-TW.md">Traditional Chinese</a>
+      <a href="README.ja.md">Japanese</a>
+      <a href="README.de.md">German</a>
+      <a href="README.fr.md">French</a>
+      <a href="README.it.md">Italian</a>
+    </footer>
+
+    <script src="site.js"></script>
+  </body>
+</html>
