@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$InstallDir = $(Join-Path ($(if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" })) "skills\cli-model-switcher"),
-  [string]$Repo = "YuxuanSun123/cli-model-switcher",
+  [string]$Repo = "UtenKekkoDev/cli-model-switcher",
   [string]$Branch = "main",
   [ValidateSet("auto", "powershell", "cmd", "unix", "bash", "zsh", "fish")]
   [string]$Shell = "auto",

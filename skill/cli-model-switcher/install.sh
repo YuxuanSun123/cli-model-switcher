@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-repo="YuxuanSun123/cli-model-switcher"
+repo="UtenKekkoDev/cli-model-switcher"
 branch="main"
 codex_home="${CODEX_HOME:-$HOME/.codex}"
 install_dir="$codex_home/skills/cli-model-switcher"
@@ -21,7 +21,7 @@ Usage:
 
 Options:
   --dir DIR          Install directory. Defaults to $CODEX_HOME/skills/cli-model-switcher or ~/.codex/skills/cli-model-switcher.
-  --repo OWNER/REPO  GitHub repository. Defaults to YuxuanSun123/cli-model-switcher.
+  --repo OWNER/REPO  GitHub repository. Defaults to UtenKekkoDev/cli-model-switcher.
   --branch NAME      Git branch to install. Defaults to main.
   --shell NAME       Shell helper target: auto, bash, zsh, or fish. Defaults to auto.
   --recipes LIST     Comma-separated setup wizard recipes. Defaults to opencode-openrouter,local-ollama.

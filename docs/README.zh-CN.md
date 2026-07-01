@@ -21,13 +21,13 @@ Ayatori Nexus 是 CLI Model Switcher 的项目花名：一个本地命令行 AI 
 Linux、macOS 或 WSL：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.sh | sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.ps1 | iex
 ```
 
 一键安装器会把 skill clone 或更新到 `~/.codex/skills/cli-model-switcher`，运行非交互向导，安装 shell 快捷命令，并在 Linux、macOS、WSL 上维护 `~/.local/bin` 里的可执行 shim，方便 agent 内部调用。

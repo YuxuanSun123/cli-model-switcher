@@ -7,7 +7,7 @@ Use this reference when installing or troubleshooting the CLI model switcher on 
 Prefer the auto installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.sh | sh
 ```
 
 From an existing checkout:

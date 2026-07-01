@@ -96,14 +96,14 @@ jobs:
           Linux, macOS, or WSL:
 
           ```bash
-          curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/{tag}/install.sh | sh -s -- --branch {tag}
+          curl -fsSL https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/{tag}/install.sh | sh -s -- --branch {tag}
           ```
 
           Windows PowerShell:
 
           ```powershell
           $installer = Join-Path $env:TEMP "cli-model-switcher-install.ps1"
-          irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/{tag}/install.ps1 -OutFile $installer
+          irm https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/{tag}/install.ps1 -OutFile $installer
           powershell -ExecutionPolicy Bypass -File $installer -Branch {tag}
           ```
 

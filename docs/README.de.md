@@ -21,13 +21,13 @@ Ayatori Nexus ist der Projektname von CLI Model Switcher: ein lokaler Profilumsc
 Linux, macOS oder WSL:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.ps1 | iex
 ```
 
 Die Ein-Befehl-Installer klonen oder aktualisieren das Skill unter `~/.codex/skills/cli-model-switcher`, fuehren die nicht-interaktive Einrichtung aus, installieren Shell-Helfer und richten unter Linux, macOS und WSL Shims in `~/.local/bin` ein.

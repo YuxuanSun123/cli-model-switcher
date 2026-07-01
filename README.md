@@ -4,9 +4,9 @@
 
 **Language:** English | [Deutsch](docs/README.de.md) | [Français](docs/README.fr.md) | [Italiano](docs/README.it.md) | [日本語](docs/README.ja.md) | [简体中文](docs/README.zh-CN.md) | [繁體中文](docs/README.zh-TW.md)
 
-**Project Links:** [Demo Page](https://yuxuansun123.github.io/cli-model-switcher/) | [Changelog](CHANGELOG.md) | [Release Checklist](docs/RELEASE_CHECKLIST.md) | [Releases](https://github.com/YuxuanSun123/cli-model-switcher/releases)
+**Project Links:** [Demo Page](https://yuxuansun123.github.io/cli-model-switcher/) | [Changelog](CHANGELOG.md) | [Release Checklist](docs/RELEASE_CHECKLIST.md) | [Releases](https://github.com/UtenKekkoDev/cli-model-switcher/releases)
 
-[![CI](https://github.com/YuxuanSun123/cli-model-switcher/actions/workflows/ci.yml/badge.svg)](https://github.com/YuxuanSun123/cli-model-switcher/actions/workflows/ci.yml)
+[![CI](https://github.com/UtenKekkoDev/cli-model-switcher/actions/workflows/ci.yml/badge.svg)](https://github.com/UtenKekkoDev/cli-model-switcher/actions/workflows/ci.yml)
 
 Ayatori Nexus is the codename for CLI Model Switcher: a local profile switcher for command-line AI coding agents. It lets you move between Codex, Claude Code, OpenCode, Gemini CLI, local models, and OpenAI-compatible gateways while keeping one shared memory layer.
 
@@ -98,13 +98,13 @@ ai-report
 Linux, macOS, or WSL:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/YuxuanSun123/cli-model-switcher/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/UtenKekkoDev/cli-model-switcher/main/install.ps1 | iex
 ```
 
 The one-command installers clone or update the skill under `~/.codex/skills/cli-model-switcher`, run the guided non-interactive setup, install shell helpers, and keep the Linux/macOS/WSL `~/.local/bin` shims in place for agent-side commands.
